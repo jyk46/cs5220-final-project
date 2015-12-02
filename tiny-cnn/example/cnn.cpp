@@ -25,7 +25,9 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <iostream>
-#include <boost/timer.hpp>
+// Ji: Need to disable non-header-only boost libraries on cluster since
+// compute nodes do not have boost dynamic libraries installed.
+//#include <boost/timer.hpp>
 #include <boost/progress.hpp>
 
 #include "tiny_cnn.h"
@@ -78,22 +80,22 @@ void sample1_convnet(void) {
     std::vector<label_t> train_labels, test_labels;
     std::vector<vec_t> train_images, test_images;
 
-    parse_mnist_labels("../../data/train-labels.idx1-ubyte", &train_labels);
-    parse_mnist_images("../../data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-    parse_mnist_labels("../../data/t10k-labels.idx1-ubyte", &test_labels);
-    parse_mnist_images("../../data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
+    parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
+    parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
 
     std::cout << "start learning" << std::endl;
 
-    boost::progress_display disp(train_images.size());
-    boost::timer t;
+//    boost::progress_display disp(train_images.size());
+//    boost::timer t;
     int minibatch_size = 10;
 
     nn.optimizer().alpha *= std::sqrt(minibatch_size);
 
     // create callback
     auto on_enumerate_epoch = [&](){
-        std::cout << t.elapsed() << "s elapsed." << std::endl;
+//        std::cout << t.elapsed() << "s elapsed." << std::endl;
 
         tiny_cnn::result res = nn.test(test_images, test_labels);
 
@@ -102,12 +104,12 @@ void sample1_convnet(void) {
         nn.optimizer().alpha *= 0.85; // decay learning rate
         nn.optimizer().alpha = std::max(0.00001, nn.optimizer().alpha);
 
-        disp.restart(train_images.size());
-        t.restart();
+//        disp.restart(train_images.size());
+//        t.restart();
     };
 
     auto on_enumerate_minibatch = [&](){ 
-        disp += minibatch_size; 
+//        disp += minibatch_size; 
     
         // weight visualization in imdebug
         /*static int n = 0;    
@@ -121,7 +123,7 @@ void sample1_convnet(void) {
     };
     
     // training
-    nn.train(train_images, train_labels, minibatch_size, 20, on_enumerate_minibatch, on_enumerate_epoch);
+    nn.train(train_images, train_labels, minibatch_size, 30, on_enumerate_minibatch, on_enumerate_epoch);
 
     std::cout << "end training." << std::endl;
 
@@ -159,12 +161,12 @@ void sample2_mlp()
 
     nn.optimizer().alpha = 0.001;
     
-    boost::progress_display disp(train_images.size());
-    boost::timer t;
+//    boost::progress_display disp(train_images.size());
+//    boost::timer t;
 
     // create callback
     auto on_enumerate_epoch = [&](){
-        std::cout << t.elapsed() << "s elapsed." << std::endl;
+//        std::cout << t.elapsed() << "s elapsed." << std::endl;
 
         tiny_cnn::result res = nn.test(test_images, test_labels);
 
@@ -173,12 +175,12 @@ void sample2_mlp()
         nn.optimizer().alpha *= 0.85; // decay learning rate
         nn.optimizer().alpha = std::max(0.00001, nn.optimizer().alpha);
 
-        disp.restart(train_images.size());
-        t.restart();
+//        disp.restart(train_images.size());
+//        t.restart();
     };
 
     auto on_enumerate_data = [&](){ 
-        ++disp; 
+//        ++disp; 
     };  
 
     nn.train(train_images, train_labels, 1, 20, on_enumerate_data, on_enumerate_epoch);
@@ -238,12 +240,12 @@ void sample4_dropout()
     parse_mnist_images("../../data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 0, 0);
 
     // load train-data, label_data
-    boost::progress_display disp(train_images.size());
-    boost::timer t;
+//    boost::progress_display disp(train_images.size());
+//    boost::timer t;
 
     // create callback
     auto on_enumerate_epoch = [&](){
-        std::cout << t.elapsed() << "s elapsed." << std::endl;
+//        std::cout << t.elapsed() << "s elapsed." << std::endl;
 
         f1.set_context(dropout::test_phase);
         tiny_cnn::result res = nn.test(test_images, test_labels);
@@ -255,12 +257,12 @@ void sample4_dropout()
         nn.optimizer().alpha *= 0.99; // decay learning rate
         nn.optimizer().alpha = std::max(0.00001, nn.optimizer().alpha);
 
-        disp.restart(train_images.size());
-        t.restart();
+//        disp.restart(train_images.size());
+//        t.restart();
     };
 
     auto on_enumerate_data = [&](){
-        ++disp;
+//        ++disp;
     };
 
     nn.train(train_images, train_labels, 1, 100, on_enumerate_data, on_enumerate_epoch);

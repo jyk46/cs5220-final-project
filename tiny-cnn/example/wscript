@@ -4,21 +4,32 @@ def build(bld):
       libcxx = 'c++'
     else:
       libcxx = 'stdc++'
-    
-    bld(features = 'cxx cprogram',
-      source = 'main.cpp',
-      target = 'main',
-      cflags   = ['-Wall'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
-      lib      = [libcxx, 'boost_timer-mt', 'tbb'],
-      libpath  = ['../'],
-      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
 
+    # Ji: need to disable boost libraries on cluster until staff installs
     bld(features = 'cxx cprogram',
-      source = 'ocr.cpp',
-      target = 'ocr',
+      source = 'cnn.cpp',
+      target = 'cnn',
       cflags   = ['-Wall'],
       cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
-      lib      = [libcxx, 'opencv_core', 'opencv_highgui', 'opencv_imgproc', 'tbb'],
-      libpath  = ['../'],
+      lib      = [libcxx, 'tbb'],
+      libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
       includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
+    
+#    bld(features = 'cxx cprogram',
+#      source = 'main.cpp',
+#      target = 'main',
+#      cflags   = ['-Wall'],
+#      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
+#      lib      = [libcxx, 'boost_timer-mt', 'tbb'],
+#      libpath  = ['../', bld.env.TBB_ROOT + '../lib/intel64/gcc4.4'],
+#      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
+
+     # Ji: need to disable opencv on cluster until staff installs
+#    bld(features = 'cxx cprogram',
+#      source = 'ocr.cpp',
+#      target = 'ocr',
+#      cflags   = ['-Wall'],
+#      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
+#      lib      = [libcxx, 'opencv_core', 'opencv_highgui', 'opencv_imgproc', 'tbb'],
+#      libpath  = ['../', bld.env.TBB_ROOT + '../lib/intel64/gcc4.4'],
+#      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
