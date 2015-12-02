@@ -9,7 +9,7 @@ def build(bld):
       source = 'main.cpp',
       target = 'main',
       cflags   = ['-Wall'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
       lib      = [libcxx, 'boost_timer-mt', 'tbb'],
       libpath  = ['../'],
       includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
@@ -18,7 +18,7 @@ def build(bld):
       source = 'ocr.cpp',
       target = 'ocr',
       cflags   = ['-Wall'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
       lib      = [libcxx, 'opencv_core', 'opencv_highgui', 'opencv_imgproc', 'tbb'],
       libpath  = ['../'],
       includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
