@@ -123,7 +123,7 @@ void sample1_convnet(void) {
     };
     
     // training
-    nn.train(train_images, train_labels, minibatch_size, 30, on_enumerate_minibatch, on_enumerate_epoch);
+    nn.train(train_images, train_labels, minibatch_size, 10, on_enumerate_minibatch, on_enumerate_epoch);
 
     std::cout << "end training." << std::endl;
 

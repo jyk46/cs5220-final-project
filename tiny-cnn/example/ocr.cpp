@@ -44,10 +44,24 @@ void convert_image(const std::string& imagefilename,
 }
 
 void recognize(const std::string& dictionary, const std::string& filename) {
-    network<mse, adagrad> nn; // specify loss-function and learning strategy
+    network<mse, gradient_descent_levenberg_marquardt> nn; // specify loss-function and learning strategy
+
+#define O true
+#define X false
+    static const bool connection [] = {
+        O, X, X, X, O, O, O, X, X, O, O, O, O, X, O, O,
+        O, O, X, X, X, O, O, O, X, X, O, O, O, O, X, O,
+        O, O, O, X, X, X, O, O, O, X, X, O, X, O, O, O,
+        X, O, O, O, X, X, O, O, O, O, X, X, O, X, O, O,
+        X, X, O, O, O, X, X, O, O, O, O, X, O, O, X, O,
+        X, X, X, O, O, O, X, X, O, O, O, O, X, O, O, O
+    };
+#undef O
+#undef X
+
     nn << convolutional_layer<tan_h>(32, 32, 5, 1, 6)
         << average_pooling_layer<tan_h>(28, 28, 6, 2)
-        << convolutional_layer<tan_h>(14, 14, 5, 6, 16)
+        << convolutional_layer<tan_h>(14, 14, 5, 6, 16, connection_table(connection, 6, 16))
         << average_pooling_layer<tan_h>(10, 10, 16, 2)
         << convolutional_layer<tan_h>(5, 5, 5, 16, 120)
         << fully_connected_layer<tan_h>(120, 10);
