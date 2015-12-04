@@ -9,12 +9,13 @@ def build(bld):
     bld(features = 'cxx cprogram',
       source = 'cnn.cpp',
       target = 'cnn',
-      cflags   = ['-Wall'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
+      cflags   = ['-Wall', '-fopenmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx', '-fopenmp'],
       lib      = [libcxx, 'tbb'],
       libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
-      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
-    
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT],
+      linkflags=['-fopenmp'])
+
 #    bld(features = 'cxx cprogram',
 #      source = 'main.cpp',
 #      target = 'main',
@@ -28,8 +29,8 @@ def build(bld):
 #    bld(features = 'cxx cprogram',
 #      source = 'ocr.cpp',
 #      target = 'ocr',
-#      cflags   = ['-Wall'],
+#      cflags   = ['-Wall', '-g', '-ggdb'],
 #      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx'],
 #      lib      = [libcxx, 'opencv_core', 'opencv_highgui', 'opencv_imgproc', 'tbb'],
-#      libpath  = ['../', bld.env.TBB_ROOT + '../lib/intel64/gcc4.4'],
-#      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
+#      libpath  = ['../', bld.env.TBB_ROOT + '../lib/intel64/gcc4.4', '/share/apps/opencv-gcc-2.4.11/lib'],
+#      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT, '/share/apps/opencv-gcc-2.4.11/include'])
