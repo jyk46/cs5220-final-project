@@ -12,6 +12,10 @@ def options(opt):
                    action = 'store_true',
                    default = False,
                    help='enable TBB parallelization [default:False]')
+    opt.add_option('--OMP',
+                   action = 'store_true',
+                   default = False,
+                   help='enable OMP parallelization [default:False]')
     opt.add_option('--AVX',
                    action = 'store_true',
                    default = False,
@@ -43,6 +47,8 @@ def configure(conf):
     conf.load('compiler_cxx')
     if conf.options.TBB:
        conf.define("CNN_USE_TBB", "")
+    if conf.options.OMP:
+       conf.define("CNN_USE_OMP", "")
     if conf.options.AVX:
        conf.define("CNN_USE_AVX", "")
     if conf.options.SSE:

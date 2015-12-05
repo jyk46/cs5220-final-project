@@ -1,7 +1,7 @@
 /*
     Copyright (c) 2013, Taiga Nomi
     All rights reserved.
-    
+
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
     * Redistributions of source code must retain the above copyright
@@ -13,15 +13,15 @@
     names of its contributors may be used to endorse or promote products
     derived from this software without specific prior written permission.
 
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY 
-    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY 
-    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
-    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <iostream>
@@ -29,7 +29,7 @@
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
 #include <boost/progress.hpp>
-
+#include <omp.h>
 #include "tiny_cnn.h"
 //#define NOMINMAX
 //#include "imdebug.h"
@@ -73,7 +73,7 @@ void sample1_convnet(void) {
        << average_pooling_layer<tan_h>(10, 10, 16, 2)
        << convolutional_layer<tan_h>(5, 5, 5, 16, 120)
        << fully_connected_layer<tan_h>(120, 10);
- 
+
     std::cout << "load models..." << std::endl;
 
     // load MNIST dataset
@@ -108,11 +108,11 @@ void sample1_convnet(void) {
 //        t.restart();
     };
 
-    auto on_enumerate_minibatch = [&](){ 
-//        disp += minibatch_size; 
-    
+    auto on_enumerate_minibatch = [&](){
+//        disp += minibatch_size;
+
         // weight visualization in imdebug
-        /*static int n = 0;    
+        /*static int n = 0;
         n+=minibatch_size;
         if (n >= 1000) {
             image img;
@@ -121,10 +121,13 @@ void sample1_convnet(void) {
             n = 0;
         }*/
     };
-    
-    // training
-    nn.train(train_images, train_labels, minibatch_size, 10, on_enumerate_minibatch, on_enumerate_epoch);
 
+    // training
+    print_parallelism();
+    double t0 = omp_get_wtime();
+    nn.train(train_images, train_labels, minibatch_size, 1, on_enumerate_minibatch, on_enumerate_epoch);
+    double t1 = omp_get_wtime();
+    std::cout << "training time: " << t1-t0 << std::endl;
     std::cout << "end training." << std::endl;
 
     // test and show results
@@ -160,7 +163,7 @@ void sample2_mlp()
     parse_mnist_images("../../data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 0, 0);
 
     nn.optimizer().alpha = 0.001;
-    
+
 //    boost::progress_display disp(train_images.size());
 //    boost::timer t;
 
@@ -179,9 +182,9 @@ void sample2_mlp()
 //        t.restart();
     };
 
-    auto on_enumerate_data = [&](){ 
-//        ++disp; 
-    };  
+    auto on_enumerate_data = [&](){
+//        ++disp;
+    };
 
     nn.train(train_images, train_labels, 1, 20, on_enumerate_data, on_enumerate_epoch);
 }

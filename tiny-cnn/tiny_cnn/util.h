@@ -1,7 +1,7 @@
 /*
     Copyright (c) 2013, Taiga Nomi
     All rights reserved.
-    
+
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
     * Redistributions of source code must retain the above copyright
@@ -13,15 +13,15 @@
     names of its contributors may be used to endorse or promote products
     derived from this software without specific prior written permission.
 
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY 
-    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY 
-    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
-    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #pragma once
@@ -33,6 +33,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdarg>
+#include <omp.h>
 
 #ifdef CNN_USE_TBB
 #ifndef NOMINMAX
@@ -88,7 +89,7 @@ inline bool bernoulli(double p) {
 
 template<typename Iter>
 void uniform_rand(Iter begin, Iter end, float_t min, float_t max) {
-    for (Iter it = begin; it != end; ++it) 
+    for (Iter it = begin; it != end; ++it)
         *it = uniform_rand(min, max);
 }
 
@@ -124,11 +125,34 @@ U rescale(T x, T src_min, T src_max, U dst_min, U dst_max) {
     return std::min(dst_max, std::max(value, dst_min));
 }
 
-inline void nop() 
+inline void nop()
 {
     // do nothing
 }
 
+
+#ifdef CNN_USE_TBB
+
+void print_parallelism() {
+    std::cout << "Threading: TBB " << CNN_TASK_SIZE  << std::endl;
+}
+
+#else
+
+    #ifdef CNN_USE_OMP
+
+    void print_parallelism() {
+        std::cout << "Threading: OMP " << CNN_TASK_SIZE << std::endl;
+    }
+
+    #else
+
+    void print_parallelism() {
+        std::cout << "Threading: None 0" << std::endl;
+    }
+
+    #endif
+#endif
 
 #ifdef CNN_USE_TBB
 
@@ -139,11 +163,11 @@ typedef tbb::task_group task_group;
 
 template<typename Func>
 void parallel_for(int begin, int end, const Func& f) {
-    tbb::parallel_for(blocked_range(begin, end, 100), f);
+    tbb::parallel_for(blocked_range(begin, end, 1), f);
 }
 template<typename Func>
 void xparallel_for(int begin, int end, const Func& f) {
-    f(blocked_range(begin, end, 100));
+    f(blocked_range(begin, end, 1));
 }
 
 template<typename Func>
@@ -188,8 +212,8 @@ bool const value_representation(U const &value)
 
 template<typename Func>
 void for_(bool parallelize, size_t begin, size_t end, Func f) {
-    parallelize = parallelize && value_representation<int>(begin);
-    parallelize = parallelize && value_representation<int>(end);
+    // parallelize = parallelize && value_representation<int>(begin);
+    // parallelize = parallelize && value_representation<int>(end);
     parallelize? parallel_for(static_cast<int>(begin), static_cast<int>(end), f) : xparallel_for(begin, end, f);
 }
 
@@ -291,7 +315,7 @@ struct index3d {
     }
 
     T get_index(T x, T y, T channel) const {
-        return (height_ * channel + y) * width_ + x; 
+        return (height_ * channel + y) * width_ + x;
     }
 
     T size() const {

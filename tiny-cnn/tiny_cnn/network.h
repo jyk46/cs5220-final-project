@@ -1,7 +1,7 @@
 /*
     Copyright (c) 2013, Taiga Nomi
     All rights reserved.
-    
+
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
     * Redistributions of source code must retain the above copyright
@@ -13,15 +13,15 @@
     names of its contributors may be used to endorse or promote products
     derived from this software without specific prior written permission.
 
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY 
-    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY 
-    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
-    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #pragma once
@@ -61,13 +61,13 @@ struct result {
         auto all_labels = labels();
 
         os << std::setw(5) << "*" << " ";
-        for (auto c : all_labels) 
+        for (auto c : all_labels)
             os << std::setw(5) << c << " ";
         os << std::endl;
 
         for (auto r : all_labels) {
-            os << std::setw(5) << r << " ";           
-            for (auto c : all_labels) 
+            os << std::setw(5) << r << " ";
+            for (auto c : all_labels)
                 os << std::setw(5) << confusion_matrix[r][c] << " ";
             os << std::endl;
         }
@@ -94,7 +94,7 @@ enum grad_check_mode {
 };
 
 template<typename LossFunction, typename Optimizer>
-class network 
+class network
 {
 public:
     typedef LossFunction E;
@@ -118,7 +118,7 @@ public:
      * @param t                  array of training signals(label or vector)
      * @param epoch              number of training epochs
      * @param on_batch_enumerate callback for each mini-batch enumerate
-     * @param on_epoch_enumerate callback for each epoch 
+     * @param on_epoch_enumerate callback for each epoch
      */
     template <typename OnBatchEnumerate, typename OnEpochEnumerate, typename T>
     bool train(const std::vector<vec_t>& in,
@@ -208,7 +208,7 @@ public:
 /**
  * @brief [TODO--------- NOT FINISHED]
  * @details [long description]
- * 
+ *
  * @param data [description]
  * @return [description]
  */
@@ -228,8 +228,8 @@ public:
         image<float_t> out(data);
         //image<float_t> output = current->forward_propagation(in,0);
 
-        while ((current = current->next()) != 0) 
-        { 
+        while ((current = current->next()) != 0)
+        {
             in = out;//transfer out of previous layer to in of current
 
             //format out image
@@ -244,7 +244,7 @@ public:
                 //convolve all the image (instead of the patch, so faster)
                 vec_t& kernel = current->weight();//w
                 vec_t& b = current->bias();
-                
+
                 //depth = out.depth();
                 //convolution
                 //for_i((cols-kernel_size)*(rows-kernel_size), [&](int count)
@@ -267,7 +267,7 @@ public:
                                 ii = i + (m - kernel_size / 2);
                                 jj = j + (n - kernel_size / 2);
 
-                                //if (ii >= 0 && ii < rows && jj >= 0 && jj < cols) 
+                                //if (ii >= 0 && ii < rows && jj >= 0 && jj < cols)
                                 {
                                     float val = (in[ii * cols +jj]);
                                     //for (k=0;k<depth_;k++)
@@ -298,7 +298,7 @@ public:
                         int mm, nn, ii, jj, m, n;
                         const int j = count / out.width();
                         const int i = count % out.width();
-                        out[k * out.width()*out.height() + i  * out.width() + j] = in[k * width * height + i * size * width + j * size];    
+                        out[k * out.width()*out.height() + i  * out.width() + j] = in[k * width * height + i * size * width + j * size];
                 }
                 );
 
@@ -311,7 +311,7 @@ public:
 
     }
 #endif
-    
+
     /**
      * calculate loss value (the smaller, the better) for regression task
      **/
@@ -358,7 +358,7 @@ public:
             vec_t& db = current->bias_diff(0);
 
             if (w.empty()) continue;
-            
+
             switch (mode) {
             case GRAD_CHECK_ALL:
                 for (int i = 0; i < (int)w.size(); i++)
@@ -419,7 +419,7 @@ public:
     }
 
     template <typename BiasInit>
-    network& bias_init(const BiasInit& f) { 
+    network& bias_init(const BiasInit& f) {
         auto ptr = std::make_shared<BiasInit>(f);
         for (size_t i = 0; i < depth(); i++)
             layers_[i]->bias_init(ptr);
@@ -455,8 +455,9 @@ private:
         } else {
             train_onebatch(in, t, size, nbThreads);
         }
-    }   
+    }
 
+#ifdef CNN_USE_TBB
     void train_onebatch(const vec_t* in, const vec_t* t, int batch_size, const int num_tasks = CNN_TASK_SIZE) {
         task_group g;
         //int num_tasks = batch_size < CNN_TASK_SIZE ? 1 : CNN_TASK_SIZE;
@@ -475,12 +476,55 @@ private:
             in += num;
             t += num;
         }
-
-        assert(remaining == 0);
         g.wait();
+        assert(remaining == 0);
         // merge all dW and update W by optimizer
         layers_.update_weights(&optimizer_, num_tasks, batch_size);
     }
+#else
+
+    #ifdef CNN_USE_OMP
+        // TODO: implement for OMP
+        void train_onebatch(const vec_t* in, const vec_t* t, int batch_size, const int num_tasks = CNN_TASK_SIZE) {
+            //int num_tasks = batch_size < CNN_TASK_SIZE ? 1 : CNN_TASK_SIZE;
+            int data_per_thread = batch_size / num_tasks;
+            int remaining = batch_size % num_tasks + data_per_thread;
+
+            // divide batch data and invoke [num_tasks] tasks
+            #pragma omp parallel for
+            for (int i = 0; i < num_tasks; i++) {
+                int num = i == num_tasks - 1 ? remaining : data_per_thread;
+
+                for (int j = i*data_per_thread; j < i*data_per_thread + num; j++) bprop(fprop(in[j], i), t[j], i);
+
+                // remaining -= num;
+            }
+            // assert(remaining == 0);
+            // merge all dW and update W by optimizer
+            layers_.update_weights(&optimizer_, num_tasks, batch_size);
+        }
+    #else
+        void train_onebatch(const vec_t* in, const vec_t* t, int batch_size, const int num_tasks = CNN_TASK_SIZE) {
+            //int num_tasks = batch_size < CNN_TASK_SIZE ? 1 : CNN_TASK_SIZE;
+            int data_per_thread = batch_size / num_tasks;
+            int remaining = batch_size;
+
+            // divide batch data and invoke [num_tasks] tasks
+            for (int i = 0; i < num_tasks; i++) {
+                int num = i == num_tasks - 1 ? remaining : data_per_thread;
+
+                for (int j = 0; j < num; j++) bprop(fprop(in[j], i), t[j], i);
+
+                remaining -= num;
+                in += num;
+                t += num;
+            }
+            assert(remaining == 0);
+            // merge all dW and update W by optimizer
+            layers_.update_weights(&optimizer_, num_tasks, batch_size);
+        }
+    #endif
+#endif
 
     void calc_hessian(const std::vector<vec_t>& in, int size_initialize_hessian = 500) {
         int size = std::min((int)in.size(), size_initialize_hessian);
@@ -618,7 +662,7 @@ private:
 /**
  * @brief [cut an image in samples to be tested (slow)]
  * @details [long description]
- * 
+ *
  * @param data [pointer to the data]
  * @param rows [self explained]
  * @param cols [self explained]
