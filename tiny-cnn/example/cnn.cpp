@@ -124,6 +124,7 @@ void sample1_convnet(void) {
 
     // training
     print_parallelism();
+    std::cout << "Batch size: " << minibatch_size << std::endl;
     double t0 = omp_get_wtime();
     nn.train(train_images, train_labels, minibatch_size, 1, on_enumerate_minibatch, on_enumerate_epoch);
     double t1 = omp_get_wtime();

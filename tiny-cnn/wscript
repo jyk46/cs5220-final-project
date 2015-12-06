@@ -43,6 +43,11 @@ def options(opt):
                    default = TBB_ROOT_DEFAULT,
                    help='root directory of TBB [default:%s]' % TBB_ROOT_DEFAULT)
 
+    TARGET_DEFAULT = 'cnn'
+    opt.add_option('--TARGET',
+                   action = 'store',
+                   default = TARGET_DEFAULT,
+                   help='output target name [default:%s]' % TARGET_DEFAULT)
 def configure(conf):
     conf.load('compiler_cxx')
     if conf.options.TBB:
@@ -55,6 +60,7 @@ def configure(conf):
        conf.define("CNN_USE_SSE", "")
     conf.env.TBB_ROOT = conf.options.TBB_ROOT
     conf.env.BOOST_ROOT = conf.options.BOOST_ROOT
+    conf.env.TARGET = conf.options.TARGET
 
 def build(bld):
     bld.recurse('example')
