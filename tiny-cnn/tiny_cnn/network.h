@@ -486,7 +486,6 @@ private:
     #ifdef CNN_USE_OMP
         // TODO: implement for OMP
         void train_onebatch(const vec_t* in, const vec_t* t, int batch_size, const int num_tasks = CNN_TASK_SIZE) {
-            //int num_tasks = batch_size < CNN_TASK_SIZE ? 1 : CNN_TASK_SIZE;
             int data_per_thread = batch_size / num_tasks;
             int remaining = batch_size % num_tasks + data_per_thread;
 
@@ -497,11 +496,15 @@ private:
 
                 for (int j = i*data_per_thread; j < i*data_per_thread + num; j++) bprop(fprop(in[j], i), t[j], i);
 
-                // remaining -= num;
             }
-            // assert(remaining == 0);
+
             // merge all dW and update W by optimizer
             layers_.update_weights(&optimizer_, num_tasks, batch_size);
+            // #pragma omp parallel for
+            // for (int i = 0; i < batch_size; i++) {
+            //     bprop(fprop(in[i], i), t[i], i);
+            // }
+            // layers_.update_weights(&optimizer_, batch_size, batch_size);
         }
     #else
         void train_onebatch(const vec_t* in, const vec_t* t, int batch_size, const int num_tasks = CNN_TASK_SIZE) {

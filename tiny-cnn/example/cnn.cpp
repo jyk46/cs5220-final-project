@@ -50,7 +50,7 @@ int main(void) {
 // learning convolutional neural networks (LeNet-5 like architecture)
 void sample1_convnet(void) {
     // construct LeNet-5 architecture
-    network<mse, gradient_descent_levenberg_marquardt> nn;
+    network<mse, RMSprop> nn;
 
     // connection table [Y.Lecun, 1998 Table.1]
 #define O true
@@ -89,7 +89,7 @@ void sample1_convnet(void) {
 
 //    boost::progress_display disp(train_images.size());
 //    boost::timer t;
-    int minibatch_size = 10;
+    int minibatch_size = 200;
 
     nn.optimizer().alpha *= std::sqrt(minibatch_size);
 
@@ -123,6 +123,10 @@ void sample1_convnet(void) {
     };
 
     // training
+#ifdef CNN_USE_OMP
+    omp_set_dynamic(0);
+    omp_set_num_threads(CNN_TASK_SIZE);
+#endif
     print_parallelism();
     std::cout << "Batch size: " << minibatch_size << std::endl;
     double t0 = omp_get_wtime();

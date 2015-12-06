@@ -156,7 +156,7 @@ void print_parallelism() {
 
 #ifdef CNN_USE_TBB
 
-static tbb::task_scheduler_init tbbScheduler(tbb::task_scheduler_init::automatic);//tbb::task_scheduler_init::deferred);
+static tbb::task_scheduler_init init(CNN_TASK_SIZE);//tbb::task_scheduler_init::deferred);
 
 typedef tbb::blocked_range<int> blocked_range;
 typedef tbb::task_group task_group;
