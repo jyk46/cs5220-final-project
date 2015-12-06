@@ -10,11 +10,11 @@ def build(bld):
       source = 'cnn.cpp',
       target = bld.env.TARGET,
       cflags   = ['-Wall', '-fopenmp'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx', '-fopenmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-no-prec-div', '-xcore-avx2', '-ipo', '-O3', '-mavx', '-openmp'],
       lib      = [libcxx, 'tbb'],
       libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
       includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT],
-      linkflags = ['-fopenmp'])
+      linkflags = ['-openmp'])
 
 #    bld(features = 'cxx cprogram',
 #      source = 'main.cpp',

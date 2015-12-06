@@ -33,6 +33,7 @@
 #include <map>
 #include <set>
 
+#pragma offload_attribute(push,target(mic))
 #include "util.h"
 #include "activation_function.h"
 #include "loss_function.h"
@@ -40,6 +41,7 @@
 #include "layer.h"
 #include "layers.h"
 #include "fully_connected_layer.h"
+#pragma offload_attribute(pop)
 
 namespace tiny_cnn {
 
@@ -102,10 +104,10 @@ public:
     explicit network(const std::string& name = "") : name_(name) {}
 
     // getter
-    layer_size_t in_dim() const         { return layers_.head()->in_size(); }
-    layer_size_t out_dim() const        { return layers_.tail()->out_size(); }
-    std::string  name() const           { return name_; }
-    Optimizer&   optimizer()            { return optimizer_; }
+    layer_size_t __attribute__((target(mic))) in_dim() const         { return layers_.head()->in_size(); }
+    layer_size_t __attribute__((target(mic))) out_dim() const        { return layers_.tail()->out_size(); }
+    std::string  __attribute__((target(mic))) name() const           { return name_; }
+    Optimizer&   __attribute__((target(mic))) optimizer()            { return optimizer_; }
 
     void         init_weight()          { layers_.init_weight(); }
     void         add(std::shared_ptr<layer_base> layer) { layers_.add(layer); }
@@ -490,6 +492,8 @@ private:
             int remaining = batch_size % num_tasks + data_per_thread;
 
             // divide batch data and invoke [num_tasks] tasks
+            #pragma offload target(mic) \
+                inout(t, in : length(batch_size))
             #pragma omp parallel for
             for (int i = 0; i < num_tasks; i++) {
                 int num = i == num_tasks - 1 ? remaining : data_per_thread;
@@ -539,7 +543,7 @@ private:
     }
 
     template<typename Activation>
-    bool is_canonical_link(const Activation& h) {
+    bool __attribute__((target(mic))) is_canonical_link(const Activation& h) {
         if (typeid(h) == typeid(activation::sigmoid) && typeid(E) == typeid(cross_entropy)) return true;
         if (typeid(h) == typeid(activation::tan_h) && typeid(E) == typeid(cross_entropy)) return true;
         if (typeid(h) == typeid(activation::identity) && typeid(E) == typeid(mse)) return true;
@@ -547,7 +551,7 @@ private:
         return false;
     }
 
-    const vec_t& fprop(const vec_t& in, int idx = 0) {
+    const vec_t& __attribute__((target(mic))) fprop(const vec_t& in, int idx = 0) {
         if (in.size() != (size_t)in_dim())
             data_mismatch(*layers_[0], in);
         return layers_.head()->forward_propagation(in, idx);
@@ -573,7 +577,7 @@ private:
         layers_.tail()->back_propagation_2nd(delta);
     }
 
-    void bprop(const vec_t& out, const vec_t& t, int idx = 0) {
+    void  __attribute__((target(mic))) bprop(const vec_t& out, const vec_t& t, int idx = 0) {
         vec_t delta(out_dim());
         const activation::function& h = layers_.tail()->activation_function();
 
