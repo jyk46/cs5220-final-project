@@ -1,11 +1,11 @@
 omp: configure-omp
-	./waf build && qsub omp.pbs
+	./waf build
 
 tbb: configure-tbb
-	./waf build && qsub tbb.pbs
+	./waf build
 
 none: configure-none
-	./waf build && qsub cnn.pbs
+	./waf build
 
 configure-omp:
 	./waf configure --OMP --TBB_ROOT=/usr/local/intel/tbb/include --BOOST_ROOT=/export/apps/boost-1.59.0-gcc-4.9.2/include --TARGET=omp

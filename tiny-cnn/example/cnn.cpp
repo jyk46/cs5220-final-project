@@ -287,6 +287,14 @@ void sample4_dropout()
     //std::cout << res.num_success << "/" << res.num_total << std::endl;
 }
 
+const char* usage =
+    "cnn -- Trains a cnn on MNIST\n"
+    "Flags:\n"
+    "  - b -- Batch size (10)\n"
+    "  - p -- Number of threads to use (10)\n"
+    "  - e -- Number of epochs to run (1)\n"
+    "  - o -- Add this flag if you want to offload to the Phis (false by default)\n";
+
 int main(int argc, char * argv[]) {
 
     int b = 10;
@@ -296,11 +304,12 @@ int main(int argc, char * argv[]) {
 
     // Option processing
     extern char* optarg;
-    const char* optstring = "b:p:e:o";
+    const char* optstring = "hb:p:e:o";
     int c;
     while ((c = getopt(argc, argv, optstring)) != -1) {
         switch (c) {
         case 'h':
+            fprintf(stderr, "%s", usage);
             return -1;
         case 'b': b = atoi(optarg); break;
         case 'p': p = atoi(optarg); break;
