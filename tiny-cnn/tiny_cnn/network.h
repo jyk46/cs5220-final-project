@@ -33,7 +33,6 @@
 #include <map>
 #include <set>
 
-#pragma offload_attribute(push,target(mic))
 #include "util.h"
 #include "activation_function.h"
 #include "loss_function.h"
@@ -41,7 +40,6 @@
 #include "layer.h"
 #include "layers.h"
 #include "fully_connected_layer.h"
-#pragma offload_attribute(pop)
 
 namespace tiny_cnn {
 
@@ -492,8 +490,6 @@ private:
             int remaining = batch_size % num_tasks + data_per_thread;
 
             // divide batch data and invoke [num_tasks] tasks
-            #pragma offload target(mic) \
-                inout(t, in : length(batch_size))
             #pragma omp parallel for
             for (int i = 0; i < num_tasks; i++) {
                 int num = i == num_tasks - 1 ? remaining : data_per_thread;

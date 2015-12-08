@@ -24,13 +24,16 @@
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include <iostream>
 // Ji: Need to disable non-header-only boost libraries on cluster since
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
+
+#pragma offload_attribute(push,target(mic))
+#include <iostream>
 #include <boost/progress.hpp>
 #include <omp.h>
 #include "tiny_cnn.h"
+#pragma offload_attribute(pop)
 //#define NOMINMAX
 //#include "imdebug.h"
 
@@ -42,13 +45,9 @@ void sample4_dropout();
 using namespace tiny_cnn;
 using namespace tiny_cnn::activation;
 
-int main(void) {
-    sample1_convnet();
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // learning convolutional neural networks (LeNet-5 like architecture)
-void sample1_convnet(void) {
+void __attribute__((target(mic))) sample1_convnet(void) {
     // construct LeNet-5 architecture
     network<mse, RMSprop> nn;
 
@@ -80,10 +79,10 @@ void sample1_convnet(void) {
     std::vector<label_t> train_labels, test_labels;
     std::vector<vec_t> train_images, test_images;
 
-    parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
-    parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-    parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
-    parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("/tmp/train-labels.idx1-ubyte", &train_labels);
+    parse_mnist_images("/tmp/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("/tmp/t10k-labels.idx1-ubyte", &test_labels);
+    parse_mnist_images("/tmp/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
 
     std::cout << "start learning" << std::endl;
 
@@ -278,4 +277,11 @@ void sample4_dropout()
     // change context to enable all hidden-units
     //f1.set_context(dropout::test_phase);
     //std::cout << res.num_success << "/" << res.num_total << std::endl;
+}
+
+int main(void) {
+    #pragma offload target(mic)
+    {
+        sample1_convnet();
+    }
 }
