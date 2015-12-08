@@ -29,6 +29,7 @@
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
 #include <boost/progress.hpp>
+#include <omp.h>
 
 #include "tiny_cnn.h"
 //#define NOMINMAX
@@ -96,6 +97,7 @@ void sample1_convnet(void) {
     // create callback
     auto on_enumerate_epoch = [&](){
 //        std::cout << t.elapsed() << "s elapsed." << std::endl;
+        double t0 = omp_get_wtime();
 
         tiny_cnn::result res = nn.test(test_images, test_labels);
 
@@ -104,6 +106,8 @@ void sample1_convnet(void) {
         nn.optimizer().alpha *= 0.85; // decay learning rate
         nn.optimizer().alpha = std::max(0.00001, nn.optimizer().alpha);
 
+        double t1 = omp_get_wtime();
+        std::cout << (t1 - t0) << "s elapsed." << std::endl;
 //        disp.restart(train_images.size());
 //        t.restart();
     };
