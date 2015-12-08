@@ -134,7 +134,7 @@ void __attribute__((target(mic))) sample1_convnet(int b, int p, int e, bool offl
     omp_set_num_threads(p);
 #endif
 
-    print_parallelism();
+    print_parallelism(p);
     std::cout << "Batch size: " << minibatch_size << std::endl;
     double t0 = omp_get_wtime();
     nn.train(train_images, train_labels, minibatch_size, e, on_enumerate_minibatch, on_enumerate_epoch, true, p);

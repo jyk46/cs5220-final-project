@@ -133,21 +133,21 @@ inline void nop()
 
 #ifdef CNN_USE_TBB
 
-void print_parallelism() {
-    std::cout << "Threading: TBB " << CNN_TASK_SIZE  << std::endl;
+void print_parallelism(int p) {
+    std::cout << "Threading: TBB " << p  << std::endl;
 }
 
 #else
 
     #ifdef CNN_USE_OMP
 
-    void print_parallelism() {
-        std::cout << "Threading: OMP " << CNN_TASK_SIZE << std::endl;
+    void print_parallelism(int p) {
+        std::cout << "Threading: OMP " << p << std::endl;
     }
 
     #else
 
-    void print_parallelism() {
+    void print_parallelism(int p) {
         std::cout << "Threading: None 0" << std::endl;
     }
 
