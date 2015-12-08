@@ -8,10 +8,11 @@ def build(bld):
     # Ji: need to disable boost libraries on cluster until staff installs
     bld(features = 'cxx cprogram',
       source = 'cnn.cpp',
-      target = bld.env.TARGET,
-      cflags   = ['-Wall', '-fopenmp'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-mavx', '-fopenmp'],
+      target = 'cnn',
+      cflags   = ['-Wall', '-openmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp'],
       lib      = [libcxx, 'tbb'],
+			linkflags =['-openmp'],
       libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
       includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT],
       linkflags = ['-fopenmp'])
