@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <cassert>
 #include <numeric>
+#include <stdio.h>
 
 #if defined(_MSC_VER)
 #define VECTORIZE_ALIGN(x) __declspec(align(x))
@@ -45,8 +46,8 @@ namespace detail {
 
 
 template<typename T>
-inline bool is_aligned(T, const typename T::value_type* /*p*/) {
-    return true;
+inline bool is_aligned(T, const typename T::value_type* p) {
+    return is_aligned(T(), p);
 }
 
 template<typename T>
@@ -155,6 +156,8 @@ struct float_avx {
         return std::accumulate(tmp, tmp + 8, 0.0f);
     }
 
+    static register_type setzero() { return _mm256_setzero_ps(); }
+
     static register_type fmadd(
         const register_type& v1,
         const register_type& v2,
@@ -166,11 +169,11 @@ struct float_avx {
       return _mm256_maskload_ps(px, m);
     }
 
-    static register_type maskstore(
+    static void maskstore(
         value_type* px,
         const mask_type& m,
         const register_type& v) {
-      return _mm256_maskstore_ps(px, m, v);
+      _mm256_maskstore_ps(px, m, v);
     }
 
     // Helper for calculating mask for vector loads/stores. Enabled mask
@@ -182,7 +185,7 @@ struct float_avx {
       mask >>= shamt;
 
       int MASK_1 = 0xffffffff;
-      int MASK_1 = 0x00000000;
+      int MASK_0 = 0x00000000;
 
       return _mm256_set_epi32(
           ((mask >> 7) & 0x1) ? MASK_1 : MASK_0,
@@ -218,22 +221,27 @@ struct double_avx {
         return std::accumulate(tmp, tmp + 4, 0.0);  
     }
 
+    static register_type setzero() { return _mm256_setzero_pd(); }
+
     static register_type fmadd(
         const register_type& v1,
         const register_type& v2,
         const register_type& v3) {
+      std::cout << "DOUBLE AVX FMADD" << std::endl;
       return _mm256_fmadd_pd(v1, v2, v3);
     }
 
     static register_type maskload(const value_type* px, const mask_type& m) {
+      std::cout << "DOUBLE AVX MASKLOAD" << std::endl;
       return _mm256_maskload_pd(px, m);
     }
 
-    static register_type maskstore(
+    static void maskstore(
         value_type* px,
         const mask_type& m,
         const register_type& v) {
-      return _mm256_maskstore_pd(px, m, v);
+      std::cout << "DOUBLE AVX MASKSTORE" << std::endl;
+      _mm256_maskstore_pd(px, m, v);
     }
 
     // Helper for calculating mask for vector loads/stores. Enabled mask
@@ -244,8 +252,10 @@ struct double_avx {
       int  shamt = unroll_size - num_valid;
       mask >>= shamt;
 
-      __int64 MASK_1 = 0xffffffffffffffff;
-      __int64 MASK_1 = 0x0000000000000000;
+      __int64_t MASK_1 = 0xffffffffffffffff;
+      __int64_t MASK_0 = 0x0000000000000000;
+
+      std::cout << "DOUBLE AVX MASK" << mask << std::endl;
 
       return _mm256_set_epi64x(
           ((mask >> 3) & 0x1) ? MASK_1 : MASK_0,
@@ -335,6 +345,18 @@ inline void muladd_nonaligned(const typename T::value_type* src, typename T::val
 }
 
 template<typename T>
+inline void reduce_aligned(const typename T::value_type* src, unsigned int size, typename T::value_type* dst) {
+    for (unsigned int i = 0; i < size/T::unroll_size; i++) {
+        typename T::register_type d = T::load(&dst[i*T::unroll_size]);
+        typename T::register_type s = T::load(&src[i*T::unroll_size]);
+        T::store(&dst[i*T::unroll_size], T::add(d, s));
+    }
+
+    for (unsigned int i = (size/T::unroll_size)*T::unroll_size; i < size; i++)
+        dst[i] += src[i];
+}
+
+template<typename T>
 inline void reduce_nonaligned(const typename T::value_type* src, unsigned int size, typename T::value_type* dst) {
     for (unsigned int i = 0; i < size/T::unroll_size; i++) {
         typename T::register_type d = T::loadu(&dst[i*T::unroll_size]);
@@ -346,16 +368,45 @@ inline void reduce_nonaligned(const typename T::value_type* src, unsigned int si
         dst[i] += src[i];
 }
 
-template<typename T>
-inline void reduce_aligned(const typename T::value_type* src, unsigned int size, typename T::value_type* dst) {
-    for (unsigned int i = 0; i < size/T::unroll_size; i++) {
-        typename T::register_type d = T::loadu(&dst[i*T::unroll_size]);
-        typename T::register_type s = T::loadu(&src[i*T::unroll_size]);
-        T::storeu(&dst[i*T::unroll_size], T::add(d, s));
-    }
+// Set specified number of elements starting from the specified address
+// to zeroes.
 
-    for (unsigned int i = (size/T::unroll_size)*T::unroll_size; i < size; i++)
-        dst[i] += src[i];
+template<typename T>
+inline void setzero_(
+    bool                    is_aligned,
+    int                     size,
+    typename T::value_type* dst)
+{
+
+  // Fill a local vector register with all zeroes
+  typename T::register_type zero_vec = T::setzero();
+
+  // Vectorize storing zeroes across specified array in memory
+
+  int num_wide_ops  = size / T::unroll_size;
+  int remaining_ops = size % T::unroll_size;
+
+  int i;
+  for (i = 0; i < num_wide_ops; ++i) {
+    typename T::value_type* dest_addr = dst + (i * T::unroll_size);
+
+    if (is_aligned)
+      T::store(dest_addr, zero_vec);
+    else
+      T::storeu(dest_addr, zero_vec);
+  }
+
+  // Handle last iteration when size is not evenly divisible by the
+  // vector length. In this case, we need to mask off the invalid
+  // elements at the end of the vector.
+
+  if (remaining_ops > 0) {
+    typename T::mask_type mask_vec = T::generate_mask(remaining_ops);
+
+    typename T::value_type* dest_addr = dst + (i * T::unroll_size);
+
+    T::maskstore(dest_addr, mask_vec, zero_vec);
+  }
 }
 
 // Vectorization of the inner loop of the computation kernel in
@@ -392,7 +443,7 @@ inline void fmadd_(
         :                T::loadu(src_addr);
 
     // Load partial products
-    const typename T::value_type* dest_addr = dest + (i * T::unroll_size);
+    typename T::value_type* dest_addr = dst + (i * T::unroll_size);
     typename T::register_type dest_vec
         = (is_aligned) ? T::load(dest_addr)
         :                T::loadu(dest_addr);
@@ -422,8 +473,8 @@ inline void fmadd_(
     typename T::register_type     src_vec  = T::maskload(src_addr, mask_vec);
 
     // Load partial products
-    const typename T::value_type* dest_addr = dest + (i * T::unroll_size);
-    typename T::register_type     dest_vec  = T::maskload(dest_addr, mask_vec);
+    typename T::value_type*   dest_addr = dst + (i * T::unroll_size);
+    typename T::register_type dest_vec  = T::maskload(dest_addr, mask_vec);
 
     // Multiply input and weights, add to partial product
     dest_vec = T::fmadd(c_vec, src_vec, dest_vec);
@@ -475,7 +526,14 @@ void reduce(const T* src, unsigned int size, T* dst) {
 template<typename T>
 void fmadd(const T* src, T c, unsigned int size, T* dst) {
   bool is_aligned = detail::is_aligned(VECTORIZE_TYPE(), src, dst);
-  return detail::fmadd_<VECTORIZE_TYPE>(is_aligned, size, src, c, dst);
+  detail::fmadd_<VECTORIZE_TYPE>(is_aligned, size, src, c, dst);
+}
+
+// dst[i] = 0
+template<typename T>
+void setzero(unsigned int size, T* dst) {
+  bool is_aligned = detail::is_aligned(VECTORIZE_TYPE(), dst);
+  detail::setzero_<VECTORIZE_TYPE>(is_aligned, size, dst);
 }
 
 } // namespace vectorize
