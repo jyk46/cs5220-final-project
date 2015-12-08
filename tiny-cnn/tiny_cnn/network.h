@@ -135,7 +135,7 @@ public:
         check_training_data(in, t);
         if (_init_weight)
             init_weight();
-        layers_.set_parallelize(batch_size < CNN_TASK_SIZE);
+        layers_.set_parallelize(batch_size < nbThreads);
         optimizer_.reset();
 
         for (int iter = 0; iter < epoch; iter++) {
