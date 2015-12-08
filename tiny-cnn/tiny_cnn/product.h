@@ -136,6 +136,7 @@ inline bool is_aligned(sse<T>, const typename sse<T>::value_type* p) {
 
 struct float_avx {
     typedef __m256 register_type;
+    typedef __m256i mask_type;
     typedef float value_type;
     enum {
         unroll_size = 8
@@ -153,10 +154,52 @@ struct float_avx {
         _mm256_store_ps(tmp, x);
         return std::accumulate(tmp, tmp + 8, 0.0f);
     }
+
+    static register_type fmadd(
+        const register_type& v1,
+        const register_type& v2,
+        const register_type& v3) {
+      return _mm256_fmadd_ps(v1, v2, v3);
+    }
+
+    static register_type maskload(const value_type* px, const mask_type& m) {
+      return _mm256_maskload_ps(px, m);
+    }
+
+    static register_type maskstore(
+        value_type* px,
+        const mask_type& m,
+        const register_type& v) {
+      return _mm256_maskstore_ps(px, m, v);
+    }
+
+    // Helper for calculating mask for vector loads/stores. Enabled mask
+    // values need to have the MSB set in order for the masked vector
+    // load/stores to detect it correctly so we use -1 instead of 1.
+    static mask_type generate_mask(int num_valid) {
+      char mask  = 0xff;
+      int  shamt = unroll_size - num_valid;
+      mask >>= shamt;
+
+      int MASK_1 = 0xffffffff;
+      int MASK_1 = 0x00000000;
+
+      return _mm256_set_epi32(
+          ((mask >> 7) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 6) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 5) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 4) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 3) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 2) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 1) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 0) & 0x1) ? MASK_1 : MASK_0
+      );
+    }
 };
 
 struct double_avx {
     typedef __m256d register_type;
+    typedef __m256i mask_type;
     typedef double value_type;
     enum {
         unroll_size = 4
@@ -173,6 +216,43 @@ struct double_avx {
         VECTORIZE_ALIGN(32) double tmp[4];
         _mm256_store_pd(tmp, x);
         return std::accumulate(tmp, tmp + 4, 0.0);  
+    }
+
+    static register_type fmadd(
+        const register_type& v1,
+        const register_type& v2,
+        const register_type& v3) {
+      return _mm256_fmadd_pd(v1, v2, v3);
+    }
+
+    static register_type maskload(const value_type* px, const mask_type& m) {
+      return _mm256_maskload_pd(px, m);
+    }
+
+    static register_type maskstore(
+        value_type* px,
+        const mask_type& m,
+        const register_type& v) {
+      return _mm256_maskstore_pd(px, m, v);
+    }
+
+    // Helper for calculating mask for vector loads/stores. Enabled mask
+    // values need to have the MSB set in order for the masked vector
+    // load/stores to detect it correctly so we use -1 instead of 1.
+    static mask_type generate_mask(int num_valid) {
+      char mask  = 0x0f;
+      int  shamt = unroll_size - num_valid;
+      mask >>= shamt;
+
+      __int64 MASK_1 = 0xffffffffffffffff;
+      __int64 MASK_1 = 0x0000000000000000;
+
+      return _mm256_set_epi64x(
+          ((mask >> 3) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 2) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 1) & 0x1) ? MASK_1 : MASK_0,
+          ((mask >> 0) & 0x1) ? MASK_1 : MASK_0
+      );
     }
 };
 
@@ -278,6 +358,82 @@ inline void reduce_aligned(const typename T::value_type* src, unsigned int size,
         dst[i] += src[i];
 }
 
+// Vectorization of the inner loop of the computation kernel in
+// forward_propagation and backward_propagation. Typically the src vector
+// represents the weights and the c value represents the element in the
+// input vector. Partial products are stored in the dest vector.
+
+template<typename T>
+inline void fmadd_(
+    bool                          is_aligned,
+    int                           size,
+    const typename T::value_type* src,
+    typename T::value_type        c,
+    typename T::value_type*       dst)
+{
+
+  // Broadcast the scalar value into a vector register to be used as the
+  // multiplier constant for all elements in the src vector.
+  typename T::register_type c_vec = T::set1(c);
+
+  // Vectorize across output elements, the partial product in the dest
+  // vector is added to the product of the weights and the input element.
+
+  int num_wide_ops  = size / T::unroll_size;
+  int remaining_ops = size % T::unroll_size;
+
+  int i;
+  for (i = 0; i < num_wide_ops; ++i) {
+
+    // Load weights
+    const typename T::value_type* src_addr = src + (i * T::unroll_size);
+    typename T::register_type src_vec
+        = (is_aligned) ? T::load(src_addr)
+        :                T::loadu(src_addr);
+
+    // Load partial products
+    const typename T::value_type* dest_addr = dest + (i * T::unroll_size);
+    typename T::register_type dest_vec
+        = (is_aligned) ? T::load(dest_addr)
+        :                T::loadu(dest_addr);
+
+    // Multiply input and weights, add to partial product
+    dest_vec = T::fmadd(c_vec, src_vec, dest_vec);
+
+    // Store partial products back into results vector
+    if (is_aligned)
+      T::store(dest_addr, dest_vec);
+    else
+      T::storeu(dest_addr, dest_vec);
+
+  }
+
+  // Handle last iteration when size is not evenly divisible by the
+  // vector length. In this case, we need to mask off the invalid
+  // elements at the end of the vector.
+
+  if (remaining_ops > 0) {
+
+    // Generate mask vector
+    typename T::mask_type mask_vec = T::generate_mask(remaining_ops);
+
+    // Load weights
+    const typename T::value_type* src_addr = src + (i * T::unroll_size);
+    typename T::register_type     src_vec  = T::maskload(src_addr, mask_vec);
+
+    // Load partial products
+    const typename T::value_type* dest_addr = dest + (i * T::unroll_size);
+    typename T::register_type     dest_vec  = T::maskload(dest_addr, mask_vec);
+
+    // Multiply input and weights, add to partial product
+    dest_vec = T::fmadd(c_vec, src_vec, dest_vec);
+
+    // Store partial products back into results vector
+    T::maskstore(dest_addr, mask_vec, dest_vec);
+
+  }
+}
+
 } // namespace detail
 
 #if defined(CNN_USE_AVX)
@@ -313,6 +469,13 @@ void reduce(const T* src, unsigned int size, T* dst) {
         return detail::reduce_aligned<VECTORIZE_TYPE>(src, size, dst);
     else
         return detail::reduce_nonaligned<VECTORIZE_TYPE>(src, size, dst);
+}
+
+// dst[i] += c * src[i]
+template<typename T>
+void fmadd(const T* src, T c, unsigned int size, T* dst) {
+  bool is_aligned = detail::is_aligned(VECTORIZE_TYPE(), src, dst);
+  return detail::fmadd_<VECTORIZE_TYPE>(is_aligned, size, src, c, dst);
 }
 
 } // namespace vectorize
