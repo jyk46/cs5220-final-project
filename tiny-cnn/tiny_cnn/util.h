@@ -247,9 +247,9 @@ template <typename Func>
 void for_i(bool parallelize, int size, Func f)
 {
     for_(parallelize, 0, size, [&](const blocked_range& r) {
-#ifdef CNN_USE_OMP
-#pragma omp parallel for
-#endif
+// #ifdef CNN_USE_OMP // TODO: decide if we should have this
+// #pragma omp parallel for
+// #endif
         for (int i = r.begin(); i < r.end(); i++)
             f(i);
     });
