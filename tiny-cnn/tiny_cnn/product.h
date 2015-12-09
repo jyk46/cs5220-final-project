@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <cassert>
 #include <numeric>
-#include <stdio.h>
 
 #if defined(_MSC_VER)
 #define VECTORIZE_ALIGN(x) __declspec(align(x))
@@ -227,12 +226,10 @@ struct double_avx {
         const register_type& v1,
         const register_type& v2,
         const register_type& v3) {
-      std::cout << "DOUBLE AVX FMADD" << std::endl;
       return _mm256_fmadd_pd(v1, v2, v3);
     }
 
     static register_type maskload(const value_type* px, const mask_type& m) {
-      std::cout << "DOUBLE AVX MASKLOAD" << std::endl;
       return _mm256_maskload_pd(px, m);
     }
 
@@ -240,7 +237,6 @@ struct double_avx {
         value_type* px,
         const mask_type& m,
         const register_type& v) {
-      std::cout << "DOUBLE AVX MASKSTORE" << std::endl;
       _mm256_maskstore_pd(px, m, v);
     }
 
@@ -254,8 +250,6 @@ struct double_avx {
 
       __int64_t MASK_1 = 0xffffffffffffffff;
       __int64_t MASK_0 = 0x0000000000000000;
-
-      std::cout << "DOUBLE AVX MASK" << mask << std::endl;
 
       return _mm256_set_epi64x(
           ((mask >> 3) & 0x1) ? MASK_1 : MASK_0,
