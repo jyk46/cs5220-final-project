@@ -38,7 +38,8 @@ public:
     CNN_USE_LAYER_MEMBERS;
 
     fully_connected_layer(layer_size_t in_dim, layer_size_t out_dim)
-        : Base(in_dim, out_dim, size_t(in_dim) * out_dim, out_dim, out_dim), filter_(out_dim) {}
+        : Base(in_dim, out_dim, size_t(in_dim) * out_dim, out_dim,
+               1, 1, in_dim, 1, 1, out_dim), filter_(out_dim) {}
 
     size_t connection_size() const override {
         return size_t(in_size_) * out_size_ + out_size_;
@@ -53,29 +54,44 @@ public:
     }
 
     const vec_t& forward_propagation(const vec_t& in, size_t index) override {
+        vec_t &a = a_[index];
         vec_t &out = output_[index];
 
-        // Vectorize dot product calculation across output elements. The
-        // inner loop is contained inside the fmadd function. We compute
-        // the partial products of all output elements per outer loop
-        // iteration to leverage cache locality at the cost of doing a
-        // vector store every outer loop iteration.
+        for_i(parallelize_, out_size_, [&](int i) {
+            a[i] = 0.0;
+            for (int c = 0; c < in_size_; c++)
+                a[i] += W_[c*out_size_ + i] * in[c];
 
-        float_t* a_addr = aligned_a_[index];
-        float_t* b_addr = &b_[0];
+            a[i] += b_[i];
+        });
 
-//        vectorize::setzero(out_size_, a_addr);
+        for_i(parallelize_, out_size_, [&](int i) {
+            out[i] = h_.f(a, i);
+        });
 
-        for (int c = 0; c < in_size_; c++) {
-          const float_t* w_addr    = aligned_W_ + c * col_size_padded_;
-          float_t        in_scalar = in[c];
-          vectorize::fmadd(c == 0, w_addr, in_scalar, out_size_, a_addr);
-        }
-
-        vectorize::reduce(b_addr, out_size_, a_addr);
-
-        for (int i = 0; i < out_size_; i++)
-          out[i] = h_.f(a_addr, i);
+//        vec_t &out = output_[index];
+//
+//        // Vectorize dot product calculation across output elements. The
+//        // inner loop is contained inside the fmadd function. We compute
+//        // the partial products of all output elements per outer loop
+//        // iteration to leverage cache locality at the cost of doing a
+//        // vector store every outer loop iteration.
+//
+//        float_t* a_addr = aligned_a_[index];
+//        float_t* b_addr = &b_[0];
+//
+////        vectorize::setzero(out_size_, a_addr);
+//
+//        for (int c = 0; c < in_size_; c++) {
+//          const float_t* w_addr    = aligned_W_ + c * col_size_padded_;
+//          float_t        in_scalar = in[c];
+//          vectorize::fmadd(c == 0, w_addr, in_scalar, out_size_, a_addr);
+//        }
+//
+//        vectorize::reduce(b_addr, out_size_, a_addr);
+//
+//        for (int i = 0; i < out_size_; i++)
+//          out[i] = h_.f(a_addr, i);
 
         auto& this_out = filter_.filter_fprop(out, index);
 

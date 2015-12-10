@@ -35,7 +35,7 @@ public:
     typedef layer<activation::identity> Base;
     CNN_USE_LAYER_MEMBERS;
 
-    input_layer() : Base(0, 0, 0, 0, 0) {}
+    input_layer() : Base(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) {}
 
     layer_size_t in_size() const override { return next_ ? next_->in_size(): static_cast<layer_size_t>(0); }
 
