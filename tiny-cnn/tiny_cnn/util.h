@@ -44,6 +44,7 @@
 #endif
 
 #define CNN_UNREFERENCED_PARAMETER(x) (void)(x)
+#define CNN_VLEN 32
 
 namespace tiny_cnn {
 
@@ -51,6 +52,41 @@ typedef double float_t;
 typedef unsigned short layer_size_t;
 typedef size_t label_t;
 typedef std::vector<float_t> vec_t;
+
+// Calculate minimum number of vectors to represent specified number of
+// double elements.
+
+inline __attribute__((always_inline))
+layer_size_t min_num_vecs(int num_elements, int vlen)
+{
+  return ((num_elements * sizeof(float_t)) + vlen - 1) / vlen;
+}
+
+// Pack the input data array into an output data array that has each
+// column padded to the vector width.
+
+inline __attribute__((always_inline))
+void pack_padded_data(int nrows, int ncols, int nrows_padded,
+                      float_t *data_padded, float_t *data)
+{
+  int i, j;
+  for (j = 0; j < ncols; ++j)
+    for (i = 0; i < nrows; ++i)
+      data_padded[j*nrows_padded+i] = data[j*nrows+i];
+}
+
+// Unpack the input data array that has extra padding into an unpadded
+// output data array.
+
+inline __attribute__((always_inline))
+void unpack_padded_data(int nrows, int ncols, int nrows_padded,
+                        float_t *data, float_t *data_padded)
+{
+  int i, j;
+  for (j = 0; j < ncols; ++j)
+    for (i = 0; i < nrows; ++i)
+      data[j*nrows+i] = data_padded[j*nrows_padded+i];
+}
 
 class nn_error : public std::exception {
 public:
@@ -337,6 +373,7 @@ Stream& operator << (Stream& s, const index3d<T>& d) {
 // boilerplate to resolve dependent name
 #define CNN_USE_LAYER_MEMBERS using layer_base::in_size_;\
     using layer_base::out_size_; \
+    using layer_base::out_size_padded_; \
     using layer_base::parallelize_; \
     using layer_base::next_; \
     using layer_base::prev_; \
@@ -350,6 +387,8 @@ Stream& operator << (Stream& s, const index3d<T>& d) {
     using layer_base::Whessian_; \
     using layer_base::bhessian_; \
     using layer_base::prev_delta2_; \
+    using layer_base::aligned_a_; \
+    using layer_base::aligned_W_; \
     using layer<Activation>::h_
 
 

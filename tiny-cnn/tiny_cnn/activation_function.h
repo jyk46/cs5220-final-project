@@ -36,6 +36,7 @@ public:
     virtual ~function() {}
 
     virtual float_t f(const vec_t& v, size_t index) const = 0;
+    virtual float_t f(const float_t* v, size_t index) const = 0;
 
     // dfi/dyi
     virtual float_t df(float_t y) const = 0;
@@ -50,6 +51,7 @@ public:
 class identity : public function {
 public:
     float_t f(const vec_t& v, size_t i) const override { return v[i]; }
+    float_t f(const float_t* v, size_t i) const override { return v[i]; }
     float_t df(float_t /*y*/) const override { return 1; }  
     std::pair<float_t, float_t> scale() const override { return std::make_pair(0.1, 0.9); }
 };
@@ -57,6 +59,7 @@ public:
 class sigmoid : public function {
 public:
     float_t f(const vec_t& v, size_t i) const override { return 1.0 / (1.0 + std::exp(-v[i])); }
+    float_t f(const float_t* v, size_t i) const override { return 1.0 / (1.0 + std::exp(-v[i])); }
     float_t df(float_t y) const override { return y * (1.0 - y); }
     std::pair<float_t, float_t> scale() const override { return std::make_pair(0.1, 0.9); }
 };
@@ -64,6 +67,7 @@ public:
 class relu : public function {
 public:
     float_t f(const vec_t& v, size_t i) const override { return std::max(static_cast<float_t>(0.0), v[i]); }
+    float_t f(const float_t* v, size_t i) const override { return std::max(static_cast<float_t>(0.0), v[i]); }
     float_t df(float_t y) const override { return y > 0.0 ? 1.0 : 0.0; }
     std::pair<float_t, float_t> scale() const override { return std::make_pair(0.1, 0.9); }
 };
@@ -73,6 +77,7 @@ typedef relu rectified_linear; // for compatibility
 class leaky_relu : public function {
 public:
     float_t f(const vec_t& v, size_t i) const override { return (v[i] > 0) ? v[i] : 0.01 * v[i]; }
+    float_t f(const float_t* v, size_t i) const override { return (v[i] > 0) ? v[i] : 0.01 * v[i]; }
     float_t df(float_t y) const override { return y > 0.0 ? 1.0 : 0.01; }
     std::pair<float_t, float_t> scale() const override { return std::make_pair(0.1, 0.9); }
 };
@@ -85,6 +90,31 @@ public:
         float_t denom = 0.0;
         for (auto x : v)
             denom += std::exp(x - alpha);
+        return numer / denom;
+    }
+
+    // The array version of this activation function also needs an
+    // additional size argument to find the maximum of all elements in
+    // the array. We still need to override the abstract base class so a
+    // dummy function is defined but this is not very clean.
+    //
+    // An alternative is to assign the array to a vector before calling
+    // the activation function but that would incur another copy to
+    // preserve the same abstraction.
+
+    float_t f(const float_t* v, size_t i) const override {
+        return v[i]; // return identity
+    }
+
+    float_t f(const float_t* v, size_t size, size_t i) const {
+        float_t alpha = v[0];
+        for (int i = 1; i < size; i++)
+          if (v[i] > alpha)
+            alpha = v[i];
+        float_t numer = std::exp(v[i] - alpha);
+        float_t denom = 0.0;
+        for (int i = 0; i < size; i++)
+            denom += std::exp(v[i] - alpha);
         return numer / denom;
     }
 
@@ -108,6 +138,12 @@ public:
     float_t f(const vec_t& v, size_t i) const override {
         const float_t ep = std::exp(v[i]);
         const float_t em = std::exp(-v[i]); 
+        return (ep - em) / (ep + em);
+    }
+
+    float_t f(const float_t* v, size_t i) const override {
+        const float_t ep = std::exp(v[i]);
+        const float_t em = std::exp(-v[i]);
         return (ep - em) / (ep + em);
     }
 
@@ -137,6 +173,11 @@ private:
 class tan_hp1m2 : public function {
 public:
     float_t f(const vec_t& v, size_t i) const override {
+        const float_t ep = std::exp(v[i]);
+        return ep / (ep + std::exp(-v[i]));
+    }
+
+    float_t f(const float_t* v, size_t i) const override {
         const float_t ep = std::exp(v[i]);
         return ep / (ep + std::exp(-v[i]));
     }
