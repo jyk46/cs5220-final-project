@@ -53,20 +53,7 @@ public:
     }
 
     const vec_t& forward_propagation(const vec_t& in, size_t index) override {
-        vec_t &a = a_[index];
         vec_t &out = output_[index];
-
-//        for_i(parallelize_, out_size_, [&](int i) {
-//            a[i] = 0.0;
-//            for (int c = 0; c < in_size_; c++)
-//                a[i] += W_[c*out_size_ + i] * in[c];
-//
-//            a[i] += b_[i];
-//        });
-//
-//        for_i(parallelize_, out_size_, [&](int i) {
-//            out[i] = h_.f(a, i);
-//        });
 
         // Vectorize dot product calculation across output elements. The
         // inner loop is contained inside the fmadd function. We compute
@@ -74,21 +61,21 @@ public:
         // iteration to leverage cache locality at the cost of doing a
         // vector store every outer loop iteration.
 
-        float_t* a_addr = &a[0];
+        float_t* a_addr = aligned_a_[index];
         float_t* b_addr = &b_[0];
 
         vectorize::setzero(out_size_, a_addr);
 
         for (int c = 0; c < in_size_; c++) {
-          const float_t* w_addr    = &W_[c*out_size_];
+          const float_t* w_addr    = aligned_W_ + c * out_size_padded_;
           float_t        in_scalar = in[c];
-          vectorize::fmadd(w_addr, in_scalar, out_size_, a_addr);
+          vectorize::fmadd(false, w_addr, in_scalar, out_size_, a_addr);
         }
 
         vectorize::reduce(b_addr, out_size_, a_addr);
 
         for (int i = 0; i < out_size_; i++)
-          out[i] = h_.f(a, i);
+          out[i] = h_.f(a_addr, i);
 
         auto& this_out = filter_.filter_fprop(out, index);
 

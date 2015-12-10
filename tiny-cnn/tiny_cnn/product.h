@@ -1,7 +1,7 @@
 /*
     Copyright (c) 2013, Taiga Nomi
     All rights reserved.
-    
+
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
     * Redistributions of source code must retain the above copyright
@@ -13,15 +13,15 @@
     names of its contributors may be used to endorse or promote products
     derived from this software without specific prior written permission.
 
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY 
-    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY 
-    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
-    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #pragma once
@@ -149,7 +149,7 @@ struct float_avx {
     static register_type loadu(const value_type* px) { return _mm256_loadu_ps(px); }
     static void store(value_type* px, const register_type& v) { _mm256_store_ps(px, v); }
     static void storeu(value_type* px, const register_type& v) { _mm256_storeu_ps(px, v); }
-    static value_type resemble(const register_type& x) { 
+    static value_type resemble(const register_type& x) {
         VECTORIZE_ALIGN(32) float tmp[8];
         _mm256_store_ps(tmp, x);
         return std::accumulate(tmp, tmp + 8, 0.0f);
@@ -217,7 +217,7 @@ struct double_avx {
     static value_type resemble(const register_type& x) {
         VECTORIZE_ALIGN(32) double tmp[4];
         _mm256_store_pd(tmp, x);
-        return std::accumulate(tmp, tmp + 4, 0.0);  
+        return std::accumulate(tmp, tmp + 4, 0.0);
     }
 
     static register_type setzero() { return _mm256_setzero_pd(); }
@@ -279,8 +279,8 @@ template<typename T>
 inline typename T::value_type dot_product_nonaligned(const typename T::value_type* f1, const typename T::value_type* f2, unsigned int size) {
     typename T::register_type result = T::zero();
 
-    for (unsigned int i = 0; i < size/T::unroll_size; i++) 
-        result = T::add(result, T::mul(T::loadu(&f1[i*T::unroll_size]), T::loadu(&f2[i*T::unroll_size])));  
+    for (unsigned int i = 0; i < size/T::unroll_size; i++)
+        result = T::add(result, T::mul(T::loadu(&f1[i*T::unroll_size]), T::loadu(&f2[i*T::unroll_size])));
 
     typename T::value_type sum = T::resemble(result);
 
@@ -298,9 +298,9 @@ inline typename T::value_type dot_product_aligned(const typename T::value_type* 
     assert(is_aligned(T(), f1));
     assert(is_aligned(T(), f2));
 
-    for (unsigned int i = 0; i < size/T::unroll_size; i++) 
-        result = T::add(result, T::mul(T::load(&f1[i*T::unroll_size]), T::load(&f2[i*T::unroll_size])));  
-    
+    for (unsigned int i = 0; i < size/T::unroll_size; i++)
+        result = T::add(result, T::mul(T::load(&f1[i*T::unroll_size]), T::load(&f2[i*T::unroll_size])));
+
     typename T::value_type sum = T::resemble(result);
 
     for (unsigned int i = (size/T::unroll_size)*T::unroll_size; i < size; i++)
@@ -410,6 +410,7 @@ inline void setzero_(
 
 template<typename T>
 inline void fmadd_(
+    bool                          is_first,
     bool                          is_aligned,
     int                           size,
     const typename T::value_type* src,
@@ -427,6 +428,8 @@ inline void fmadd_(
   int num_wide_ops  = size / T::unroll_size;
   int remaining_ops = size % T::unroll_size;
 
+//  int num_wide_ops  = (size + T::unroll_size - 1) / T::unroll_size;
+
   int i;
   for (i = 0; i < num_wide_ops; ++i) {
 
@@ -436,10 +439,13 @@ inline void fmadd_(
         = (is_aligned) ? T::load(src_addr)
         :                T::loadu(src_addr);
 
-    // Load partial products
+    // Load partial products. If this is the first iteration and there
+    // are no partial products stored yet, then do not load from the
+    // destination array.
     typename T::value_type* dest_addr = dst + (i * T::unroll_size);
     typename T::register_type dest_vec
-        = (is_aligned) ? T::load(dest_addr)
+        = (is_first)   ? T::setzero()
+        : (is_aligned) ? T::load(dest_addr)
         :                T::loadu(dest_addr);
 
     // Multiply input and weights, add to partial product
@@ -518,9 +524,9 @@ void reduce(const T* src, unsigned int size, T* dst) {
 
 // dst[i] += c * src[i]
 template<typename T>
-void fmadd(const T* src, T c, unsigned int size, T* dst) {
+void fmadd(bool is_first, const T* src, T c, unsigned int size, T* dst) {
   bool is_aligned = detail::is_aligned(VECTORIZE_TYPE(), src, dst);
-  detail::fmadd_<VECTORIZE_TYPE>(is_aligned, size, src, c, dst);
+  detail::fmadd_<VECTORIZE_TYPE>(is_first, is_aligned, size, src, c, dst);
 }
 
 // dst[i] = 0

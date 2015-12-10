@@ -68,6 +68,9 @@ public:
         weight_init_->fill(&W_, fan_in_size(), fan_out_size());
         bias_init_->fill(&b_, fan_in_size(), fan_out_size());
 
+        // Copy weights to aligned array whenever it is updated
+        pack_padded_data(out_size_, in_size_, out_size_padded_, aligned_W_, &W_[0]);
+
         std::fill(Whessian_.begin(), Whessian_.end(), 0.0);
         std::fill(bhessian_.begin(), bhessian_.end(), 0.0);
         clear_diff(CNN_TASK_SIZE);
@@ -190,6 +193,9 @@ public:
         o->update(dW_[0], Whessian_, W_);
         o->update(db_[0], bhessian_, b_);
 
+        // Copy weights to aligned array whenever it is updated
+        pack_padded_data(out_size_, in_size_, out_size_padded_, aligned_W_, &W_[0]);
+
         clear_diff(worker_size);
         post_update();
     }
@@ -209,6 +215,7 @@ public:
 protected:
     layer_size_t in_size_;
     layer_size_t out_size_;
+    layer_size_t out_size_padded_;
     bool parallelize_;
 
     layer_base* next_;
@@ -226,6 +233,10 @@ protected:
     vec_t prev_delta2_; // d^2E/da^2
     std::shared_ptr<weight_init::function> weight_init_;
     std::shared_ptr<weight_init::function> bias_init_;
+
+    // Aligned buffers for copy optimization
+    float_t* aligned_a_[CNN_TASK_SIZE];
+    float_t* aligned_W_;
 
 private:
     void merge(size_t worker_size, size_t batch_size) {
@@ -261,6 +272,19 @@ private:
             for (auto& p : prev_delta_) p.resize(in_dim);
             for (auto& dw : dW_) dw.resize(weight_dim);
             for (auto& db : db_) db.resize(bias_dim);
+
+            // Allocate aligned memory
+
+                out_size_padded_  = min_num_vecs(out_dim, CNN_VLEN);
+            int out_num_bytes     = out_size_padded_ * CNN_VLEN;
+            int weights_num_bytes = out_num_bytes * in_dim;
+
+            aligned_W_ = (float_t*)_mm_malloc(weights_num_bytes, CNN_VLEN);
+
+            for (int i = 0; i < CNN_TASK_SIZE; i++) {
+               aligned_a_[i] = (float_t*)_mm_malloc(out_num_bytes, CNN_VLEN);
+            }
+
         } catch (const std::bad_alloc&) {
             throw nn_error(
                 format_str("memory allocation failed: layer size too large!\nin:%d,out:%d,weights:%d,biases:%d",
