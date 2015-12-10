@@ -41,7 +41,7 @@ public:
     max_pooling_layer(layer_size_t in_width, layer_size_t in_height, layer_size_t in_channels, layer_size_t pooling_size)
         : Base(in_width * in_height * in_channels,
         in_width * in_height * in_channels / sqr(pooling_size),
-        0, 0),
+        0, 0, in_channels),
         pool_size_(pooling_size),
         in_(in_width, in_height, in_channels),
         out_(in_width / pooling_size, in_height / pooling_size, in_channels)

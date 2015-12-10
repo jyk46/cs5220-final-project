@@ -82,7 +82,7 @@ public:
                         layer_size_t out_channels,
                         padding pad_type = padding::valid)
     : Base(in_width * in_height * in_channels, out_size(in_width, in_height, window_size, pad_type) * out_channels, 
-           sqr(window_size) * in_channels * out_channels, out_channels), 
+           sqr(window_size) * in_channels * out_channels, out_channels, out_channels), 
       in_(in_width, in_height, in_channels), 
       out_(out_length(in_width, window_size, pad_type), out_length(in_height, window_size, pad_type), out_channels),
       weight_(window_size, window_size, in_channels*out_channels),
@@ -112,7 +112,7 @@ public:
                         const connection_table& connection_table,
                         padding pad_type = padding::valid)
         : Base(in_width * in_height * in_channels, out_size(in_width, in_height, window_size, pad_type) * out_channels, 
-               sqr(window_size) * in_channels * out_channels, out_channels), 
+               sqr(window_size) * in_channels * out_channels, out_channels, out_channels), 
           in_(in_width, in_height, in_channels), 
           out_(out_length(in_width, window_size, pad_type), out_length(in_height, window_size, pad_type), out_channels),
           weight_(window_size, window_size, in_channels*out_channels),

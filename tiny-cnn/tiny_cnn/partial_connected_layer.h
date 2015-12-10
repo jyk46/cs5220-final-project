@@ -40,8 +40,8 @@ public:
     typedef std::vector<std::pair<layer_size_t, layer_size_t> > wo_connections;
     typedef layer<Activation> Base;
 
-    partial_connected_layer(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim, float_t scale_factor = 1.0)
-        : Base(in_dim, out_dim, weight_dim, bias_dim), 
+    partial_connected_layer(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim, size_t num_channels, float_t scale_factor = 1.0)
+        : Base(in_dim, out_dim, weight_dim, bias_dim, num_channels), 
           weight2io_(weight_dim), out2wi_(out_dim), in2wo_(in_dim), bias2out_(bias_dim), out2bias_(out_dim),
           scale_factor_(scale_factor) {}
 
