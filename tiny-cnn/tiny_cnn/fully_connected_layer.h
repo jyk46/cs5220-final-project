@@ -64,12 +64,12 @@ public:
         float_t* a_addr = aligned_a_[index];
         float_t* b_addr = &b_[0];
 
-        vectorize::setzero(out_size_, a_addr);
+//        vectorize::setzero(out_size_, a_addr);
 
         for (int c = 0; c < in_size_; c++) {
           const float_t* w_addr    = aligned_W_ + c * col_size_padded_;
           float_t        in_scalar = in[c];
-          vectorize::fmadd(false, w_addr, in_scalar, out_size_, a_addr);
+          vectorize::fmadd(c == 0, w_addr, in_scalar, out_size_, a_addr);
         }
 
         vectorize::reduce(b_addr, out_size_, a_addr);
