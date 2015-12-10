@@ -425,10 +425,10 @@ inline void fmadd_(
   // Vectorize across output elements, the partial product in the dest
   // vector is added to the product of the weights and the input element.
 
-  int num_wide_ops  = size / T::unroll_size;
-  int remaining_ops = size % T::unroll_size;
+//  int num_wide_ops  = size / T::unroll_size;
+//  int remaining_ops = size % T::unroll_size;
 
-//  int num_wide_ops  = (size + T::unroll_size - 1) / T::unroll_size;
+  int num_wide_ops  = (size + T::unroll_size - 1) / T::unroll_size;
 
   int i;
   for (i = 0; i < num_wide_ops; ++i) {
@@ -459,30 +459,30 @@ inline void fmadd_(
 
   }
 
-  // Handle last iteration when size is not evenly divisible by the
-  // vector length. In this case, we need to mask off the invalid
-  // elements at the end of the vector.
-
-  if (remaining_ops > 0) {
-
-    // Generate mask vector
-    typename T::mask_type mask_vec = T::generate_mask(remaining_ops);
-
-    // Load weights
-    const typename T::value_type* src_addr = src + (i * T::unroll_size);
-    typename T::register_type     src_vec  = T::maskload(src_addr, mask_vec);
-
-    // Load partial products
-    typename T::value_type*   dest_addr = dst + (i * T::unroll_size);
-    typename T::register_type dest_vec  = T::maskload(dest_addr, mask_vec);
-
-    // Multiply input and weights, add to partial product
-    dest_vec = T::fmadd(c_vec, src_vec, dest_vec);
-
-    // Store partial products back into results vector
-    T::maskstore(dest_addr, mask_vec, dest_vec);
-
-  }
+//  // Handle last iteration when size is not evenly divisible by the
+//  // vector length. In this case, we need to mask off the invalid
+//  // elements at the end of the vector.
+//
+//  if (remaining_ops > 0) {
+//
+//    // Generate mask vector
+//    typename T::mask_type mask_vec = T::generate_mask(remaining_ops);
+//
+//    // Load weights
+//    const typename T::value_type* src_addr = src + (i * T::unroll_size);
+//    typename T::register_type     src_vec  = T::maskload(src_addr, mask_vec);
+//
+//    // Load partial products
+//    typename T::value_type*   dest_addr = dst + (i * T::unroll_size);
+//    typename T::register_type dest_vec  = T::maskload(dest_addr, mask_vec);
+//
+//    // Multiply input and weights, add to partial product
+//    dest_vec = T::fmadd(c_vec, src_vec, dest_vec);
+//
+//    // Store partial products back into results vector
+//    T::maskstore(dest_addr, mask_vec, dest_vec);
+//
+//  }
 }
 
 } // namespace detail
