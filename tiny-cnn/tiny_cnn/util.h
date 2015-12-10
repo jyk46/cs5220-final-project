@@ -44,7 +44,15 @@
 #endif
 
 #define CNN_UNREFERENCED_PARAMETER(x) (void)(x)
-#define CNN_VLEN 32
+#define CNN_VLEN_NBYTES 32
+#define CNN_VLEN_NELEM  (32 / sizeof(float_t))
+#define vec         __m256d
+#define vec_set1    _mm256_set1_pd
+#define vec_setzero _mm256_setzero_pd
+#define vec_load    _mm256_load_pd
+#define vec_store   _mm256_store_pd
+#define vec_add     _mm256_add_pd
+#define vec_mul     _mm256_mul_pd
 
 namespace tiny_cnn {
 
@@ -53,30 +61,63 @@ typedef unsigned short layer_size_t;
 typedef size_t label_t;
 typedef std::vector<float_t> vec_t;
 
+// Calculate the corresponding index into the aligned buffer, assuming
+// that every row in the buffer is padded to be a multiple of the vector
+// length.
+
+inline __attribute__((always_inline))
+int calculate_aligned_i(int width, int width_padded, int index)
+{
+  int row_i = index / width;
+  int col_i = index % width;
+
+  return row_i * width_padded + col_i;
+}
+
 // Pack the input data array into an output data array that has each
 // column padded to the vector width.
 
 inline __attribute__((always_inline))
-void pack_padded_data(int nrows, int ncols, int nrows_padded,
-                      float_t *data_padded, float_t *data)
+void pack_padded_data(int x_size, int y_size, int z_size, int x_size_padded,
+                      float_t *data_padded, const float_t *data)
 {
-  int i, j;
-  for (j = 0; j < ncols; ++j)
-    for (i = 0; i < nrows; ++i)
-      data_padded[j*nrows_padded+i] = data[j*nrows+i];
+  int i, j, k;
+  for (k = 0; k < z_size; ++k) {
+    int k_offset        = k * y_size * x_size;
+    int k_offset_padded = k * y_size * x_size_padded;
+
+    for (i = 0; i < y_size; ++i) {
+      int i_offset        = i * x_size;
+      int i_offset_padded = i * x_size_padded;
+
+      for (j = 0; j < x_size; ++j)
+        data_padded[k_offset_padded+i_offset_padded+j]
+            = data[k_offset+i_offset+j];
+    }
+  }
 }
 
 // Unpack the input data array that has extra padding into an unpadded
 // output data array.
 
 inline __attribute__((always_inline))
-void unpack_padded_data(int nrows, int ncols, int nrows_padded,
-                        float_t *data, float_t *data_padded)
+void unpack_padded_data(int x_size, int y_size, int z_size, int x_size_padded,
+                      float_t *data, const float_t *data_padded)
 {
-  int i, j;
-  for (j = 0; j < ncols; ++j)
-    for (i = 0; i < nrows; ++i)
-      data[j*nrows+i] = data_padded[j*nrows_padded+i];
+  int i, j, k;
+  for (k = 0; k < z_size; ++k) {
+    int k_offset        = k * y_size * x_size;
+    int k_offset_padded = k * y_size * x_size_padded;
+
+    for (i = 0; i < y_size; ++i) {
+      int i_offset        = i * x_size;
+      int i_offset_padded = i * x_size_padded;
+
+      for (j = 0; j < x_size; ++j)
+        data[k_offset+i_offset+j]
+            = data_padded[k_offset_padded+i_offset_padded+j];
+    }
+  }
 }
 
 class nn_error : public std::exception {
@@ -377,11 +418,18 @@ Stream& operator << (Stream& s, const index3d<T>& d) {
     using layer_base::Whessian_; \
     using layer_base::bhessian_; \
     using layer_base::prev_delta2_; \
-    using layer_base::num_channels_; \
-    using layer_base::col_size_padded_; \
-    using layer_base::weights_row_size_; \
-    using layer_base::aligned_a_; \
-    using layer_base::aligned_W_; \
+    using layer_base::in_width_; \
+    using layer_base::in_height_; \
+    using layer_base::in_channels_; \
+    using layer_base::out_width_; \
+    using layer_base::out_height_; \
+    using layer_base::out_channels_; \
+    using layer_base::in_width_vecs_; \
+    using layer_base::in_width_padded_; \
+    using layer_base::out_width_vecs_; \
+    using layer_base::out_width_padded_; \
+    using layer_base::aligned_in_; \
+    using layer_base::aligned_out_; \
     using layer<Activation>::h_
 
 
