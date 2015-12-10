@@ -44,10 +44,11 @@ public:
 
     virtual ~layer_base() {}
 
-    layer_base(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim)
+    layer_base(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim, size_t num_channels)
         : parallelize_(true), next_(nullptr), prev_(nullptr),
           weight_init_(std::make_shared<weight_init::xavier>()),
-          bias_init_(std::make_shared<weight_init::constant>(0.0)) {
+          bias_init_(std::make_shared<weight_init::constant>(0.0)),
+          num_channels_(num_channels) {
         set_size(in_dim, out_dim, weight_dim, bias_dim);
     }
 
@@ -69,7 +70,7 @@ public:
         bias_init_->fill(&b_, fan_in_size(), fan_out_size());
 
         // Copy weights to aligned array whenever it is updated
-        pack_padded_data(out_size_, in_size_, out_size_padded_, aligned_W_, &W_[0]);
+        pack_padded_data(num_channels_, weights_row_size_, col_size_padded_, aligned_W_, &W_[0]);
 
         std::fill(Whessian_.begin(), Whessian_.end(), 0.0);
         std::fill(bhessian_.begin(), bhessian_.end(), 0.0);
@@ -194,7 +195,7 @@ public:
         o->update(db_[0], bhessian_, b_);
 
         // Copy weights to aligned array whenever it is updated
-        pack_padded_data(out_size_, in_size_, out_size_padded_, aligned_W_, &W_[0]);
+        pack_padded_data(num_channels_, weights_row_size_, col_size_padded_, aligned_W_, &W_[0]);
 
         clear_diff(worker_size);
         post_update();
@@ -215,7 +216,6 @@ public:
 protected:
     layer_size_t in_size_;
     layer_size_t out_size_;
-    layer_size_t out_size_padded_;
     bool parallelize_;
 
     layer_base* next_;
@@ -233,6 +233,11 @@ protected:
     vec_t prev_delta2_; // d^2E/da^2
     std::shared_ptr<weight_init::function> weight_init_;
     std::shared_ptr<weight_init::function> bias_init_;
+
+    size_t num_channels_;
+    size_t col_size_padded_;
+    size_t weights_row_size_;
+    size_t out_row_size_;
 
     // Aligned buffers for copy optimization
     float_t* aligned_a_[CNN_TASK_SIZE];
@@ -275,15 +280,19 @@ private:
 
             // Allocate aligned memory
 
-                out_size_padded_  = min_num_vecs(out_dim, CNN_VLEN);
-            int out_num_bytes     = out_size_padded_ * CNN_VLEN;
-            int weights_num_bytes = out_num_bytes * in_dim;
+            int elements_per_vec  = (CNN_VLEN / sizeof(float_t));
+            int num_vecs          = ((num_channels_ * sizeof(float_t)) + CNN_VLEN - 1) / CNN_VLEN;
+                col_size_padded_  = elements_per_vec * num_vecs;
+            int col_num_bytes     = col_size_padded_ * CNN_VLEN;
+                weights_row_size_ = (num_channels_ == 0) ? 1 : weight_dim / num_channels_;
+            int weights_num_bytes = col_num_bytes * weights_row_size_;
+                out_row_size_     = (num_channels_ == 0) ? 1 : out_dim / num_channels_;
+            int out_num_bytes     = col_num_bytes * out_row_size_;
 
             aligned_W_ = (float_t*)_mm_malloc(weights_num_bytes, CNN_VLEN);
 
-            for (int i = 0; i < CNN_TASK_SIZE; i++) {
-               aligned_a_[i] = (float_t*)_mm_malloc(out_num_bytes, CNN_VLEN);
-            }
+            for (int i = 0; i < CNN_TASK_SIZE; i++)
+              aligned_a_[i] = (float_t*)_mm_malloc(out_num_bytes, CNN_VLEN);
 
         } catch (const std::bad_alloc&) {
             throw nn_error(
@@ -296,8 +305,8 @@ private:
 template<typename Activation>
 class layer : public layer_base {
 public:
-    layer(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim)
-        : layer_base(in_dim, out_dim, weight_dim, bias_dim) {}
+    layer(layer_size_t in_dim, layer_size_t out_dim, size_t weight_dim, size_t bias_dim, size_t num_channels)
+        : layer_base(in_dim, out_dim, weight_dim, bias_dim, num_channels) {}
 
     activation::function& activation_function() override { return h_; }
 protected:

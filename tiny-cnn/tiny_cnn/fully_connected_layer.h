@@ -38,7 +38,7 @@ public:
     CNN_USE_LAYER_MEMBERS;
 
     fully_connected_layer(layer_size_t in_dim, layer_size_t out_dim)
-        : Base(in_dim, out_dim, size_t(in_dim) * out_dim, out_dim), filter_(out_dim) {}
+        : Base(in_dim, out_dim, size_t(in_dim) * out_dim, out_dim, out_dim), filter_(out_dim) {}
 
     size_t connection_size() const override {
         return size_t(in_size_) * out_size_ + out_size_;
@@ -67,7 +67,7 @@ public:
         vectorize::setzero(out_size_, a_addr);
 
         for (int c = 0; c < in_size_; c++) {
-          const float_t* w_addr    = aligned_W_ + c * out_size_padded_;
+          const float_t* w_addr    = aligned_W_ + c * col_size_padded_;
           float_t        in_scalar = in[c];
           vectorize::fmadd(false, w_addr, in_scalar, out_size_, a_addr);
         }
