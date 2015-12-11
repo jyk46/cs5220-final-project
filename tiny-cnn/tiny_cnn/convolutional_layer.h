@@ -361,12 +361,16 @@ public:
             out_width_padded_, prev_buf, &prev_out[0]
         );
 
-        for (int i = 0; i < window_width_ * in_channels_ * out_channels_; i++) {
+        int weight_end = (weight2io_.size() + window_width_ - 1) / window_width_;
+
+        for (int i = 0; i < weight_end; i++) {
           for (int j = 0; j < w_width_vecs_; j++) {
             int w_i         = (i * window_width_) + (j * CNN_VLEN_NELEM);
             int aligned_w_i = (i * w_width_padded_) + (j * CNN_VLEN_NELEM);
 
             vec w_vec = vec_setzero();
+
+            assert(w_i < weight2io_.size());
 
             for (auto connection : weight2io_[w_i]) {
               float_t delta     = current_delta[connection.second];
