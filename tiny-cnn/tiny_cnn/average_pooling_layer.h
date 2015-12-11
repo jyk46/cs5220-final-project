@@ -38,6 +38,9 @@ class average_pooling_layer : public partial_connected_layer<Activation> {
 public:
     typedef partial_connected_layer<Activation> Base;
     CNN_USE_LAYER_MEMBERS;
+    using partial_connected_layer<Activation>::scale_factor_;
+    using partial_connected_layer<Activation>::out2wi_;
+    using partial_connected_layer<Activation>::out2bias_;
 
     average_pooling_layer(layer_size_t in_width, layer_size_t in_height, layer_size_t in_channels, layer_size_t pooling_size)
     : Base(in_width * in_height * in_channels,
