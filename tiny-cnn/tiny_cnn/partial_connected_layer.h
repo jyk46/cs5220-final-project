@@ -89,112 +89,23 @@ public:
     }
 
     const vec_t& forward_propagation(const vec_t& in, size_t index) override {
-//        vec_t& a = a_[index];
-//
-//        for_i(parallelize_, out_size_, [&](int i) {
-//            const wi_connections& connections = out2wi_[i];
-//
-//            a[i] = 0.0;
-//
-//            for (auto connection : connections) // 13.1%
-//                a[i] += W_[connection.first] * in[connection.second]; // 3.2%
-//
-//            a[i] *= scale_factor_;
-//            a[i] += b_[out2bias_[i]];
-//        });
-//
-//        for_i(parallelize_, out_size_, [&](int i) {
-//            output_[index][i] = h_.f(a, i);
-//        });
+        vec_t& a = a_[index];
 
-        // Broadcast scale factor to vector register
-        vec scale_vec = vec_set1(scale_factor_);
+        for_i(parallelize_, out_size_, [&](int i) {
+            const wi_connections& connections = out2wi_[i];
 
-        // Pointers to per-thread aligned input/output buffers to allow
-        // vector loads/stores.
-        float_t* in_buf  = aligned_in_[index];
-        float_t* out_buf = aligned_out_[index];
+            a[i] = 0.0;
 
-        // Copy data from the unaligned input buffer to the aligned input
-        // buffer. The aligned output buffer is filled in as computation
-        // progresses so we do not need to copy anything to the output
-        // buffer.
-        pack_padded_data(
-            in_width_, in_height_, in_channels_,
-            in_width_padded_, in_buf, &in[0]
-        );
+            for (auto connection : connections) // 13.1%
+                a[i] += W_[connection.first] * in[connection.second]; // 3.2%
 
-        // Outer loop iterates across the rows in the output buffer, where
-        // each channel has dimensions of out_width_ x out_height_, and
-        // there are out_channels_ channels. Inner loop vectorizes
-        // computation across the columns within a row. All rows are
-        // assumed to be padded to the vector length.
+            a[i] *= scale_factor_;
+            a[i] += b_[out2bias_[i]];
+        });
 
-        for (int i = 0; i < out_height_ * out_channels_; i++ ) {
-          for (int j = 0; j < out_width_vecs_; j++ ) {
-
-            // Calculate both unaligned/aligned offsets to the output
-            // buffer. The former is used to index into the connections
-            // array whereas the latter is used to address into the
-            // aligned output buffer.
-            int out_i         = (i * out_width_) + (j * CNN_VLEN_NELEM);
-            int aligned_out_i = (i * out_width_padded_) + (j * CNN_VLEN_NELEM);
-
-            // Initialize output partial product register
-            vec out_vec = vec_setzero();
-
-            // Load the connections between the weights and inputs for
-            // this layer. first -> weight, second -> input. Multiple
-            // elements in the current row multiply the shared weights
-            // with the corresponding inputs and accumulate the partial
-            // products across all connections (e.g., 5x5x1 filter).
-
-            const wi_connections& connections = out2wi_[out_i];
-
-            for (auto connection : connections) {
-
-              // Load and broadcast shared weights for current connection
-              float_t weight     = W_[connection.first];
-              vec     weight_vec = vec_set1(weight);
-
-              // Since the connection object returns the input index into
-              // the unaligned input buffer, we need to convert this into
-              // the index into the aligned input buffer before loading
-              // the input values.
-
-              int aligned_in_i = calculate_aligned_i(
-                  in_width_, in_width_padded_, connection.second);
-
-              float_t* in_addr = in_buf + aligned_in_i;
-              vec      in_vec  = vec_load(in_addr);
-
-              // Multiply and accumulate the partial products across
-              // vectorized frontier.
-              out_vec = vec_add(out_vec, vec_mul(weight_vec, in_vec));
-
-            }
-
-            // Apply constant scale factor
-            out_vec = vec_mul(out_vec, scale_vec);
-
-            // Store the final outputs to aligned output buffer
-            float_t* out_addr = out_buf + aligned_out_i;
-            vec_store(out_addr, out_vec);
-
-          }
-        }
-
-        // Apply bias and activation function
-        for (int i = 0; i < out_height_ * out_channels_; i++ ) {
-          for (int j = 0; j < out_width_; j++ ) {
-            int out_i         = (i * out_width_) + j;
-            int aligned_out_i = (i * out_width_padded_) + j;
-
-            out_buf[aligned_out_i] += b_[out2bias_[out_i]];
-
-            output_[index][out_i] = h_.f(out_buf, aligned_out_i);
-          }
-        }
+        for_i(parallelize_, out_size_, [&](int i) {
+            output_[index][i] = h_.f(a, i);
+        });
 
         return next_ ? next_->forward_propagation(output_[index], index) : output_[index]; // 15.6%
     }
