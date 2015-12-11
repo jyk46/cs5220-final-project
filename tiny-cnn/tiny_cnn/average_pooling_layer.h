@@ -53,6 +53,120 @@ public:
             pooling_size_mismatch(in_width, in_height, pooling_size);
 
         init_connection(pooling_size);
+
+        // Allocate special aligned input buffer with more padding for
+        // strided loads.
+
+        int strided_vlen_nelem       = pooling_size * CNN_VLEN_NELEM;
+            strided_in_width_vecs_   = (in_width_ + strided_vlen_nelem - 1) / strided_vlen_nelem;
+            strided_in_width_padded_ = strided_in_width_vecs_ * strided_vlen_nelem;
+        int strided_in_nbytes        = strided_in_width_padded_ * in_height_ * in_channels_ * sizeof(float_t);
+
+        for (int i = 0; i < CNN_TASK_SIZE; i++)
+          aligned_strided_in_[i]  = (float_t*)_mm_malloc(strided_in_nbytes, CNN_VLEN_NBYTES);
+    }
+
+    // Vectorized forward propagation
+    const vec_t& forward_propagation(const vec_t& in, size_t index) override {
+
+        // Broadcast scale factor to vector register
+        vec scale_vec = vec_set1(scale_factor_);
+
+        // Set stride for input load
+        veci stride_vec = vec_set(
+          window_width_ * 3,
+          window_width_ * 2,
+          window_width_ * 1,
+          window_width_ * 0
+        );
+
+        // Pointers to per-thread aligned input/output buffers to allow
+        // vector loads/stores.
+        float_t* in_buf  = aligned_strided_in_[index];
+        float_t* out_buf = aligned_out_[index];
+
+        // Copy data from the unaligned input buffer to the aligned input
+        // buffer. The aligned output buffer is filled in as computation
+        // progresses so we do not need to copy anything to the output
+        // buffer.
+        pack_padded_data(
+            in_width_, in_height_, in_channels_,
+            strided_in_width_padded_, in_buf, &in[0]
+        );
+
+        // Outer loop iterates across the rows in the output buffer, where
+        // each channel has dimensions of out_width_ x out_height_, and
+        // there are out_channels_ channels. Inner loop vectorizes
+        // computation across the columns within a row. All rows are
+        // assumed to be padded to the vector length.
+
+        for (int i = 0; i < out_height_ * out_channels_; i++) {
+          for (int j = 0; j < out_width_vecs_; j++) {
+
+            // Calculate both unaligned/aligned offsets to the output
+            // buffer. The former is used to index into the connections
+            // array whereas the latter is used to address into the
+            // aligned output buffer.
+            int out_i         = (i * out_width_) + (j * CNN_VLEN_NELEM);
+            int aligned_out_i = (i * out_width_padded_) + (j * CNN_VLEN_NELEM);
+
+            // Initialize output partial product register
+            vec out_vec = vec_setzero();
+
+            // Load the connections between the weights and inputs for
+            // this layer. first -> weight, second -> input. Multiple
+            // elements in the current row multiply the shared weights
+            // with the corresponding inputs and accumulate the partial
+            // products across all connections (e.g., 5x5x1 filter).
+
+            for (auto connection : out2wi_[out_i]) {
+
+              // Load and broadcast shared weights for current connection
+              float_t weight     = W_[connection.first];
+              vec     weight_vec = vec_set1(weight);
+
+              // Since the connection object returns the input index into
+              // the unaligned input buffer, we need to convert this into
+              // the index into the aligned input buffer before loading
+              // the input values. We do a gather with a stride
+              // corresponding to the pooling size for this layer (always
+              // load doubles = 8B).
+
+              int aligned_in_i = calculate_aligned_i(
+                  in_width_, strided_in_width_padded_, connection.second);
+
+              float_t* in_addr = in_buf + aligned_in_i;
+              vec      in_vec  = vec_gather(in_addr, stride_vec, 8);
+
+              // Multiply and accumulate the partial products across
+              // vectorized frontier.
+              out_vec = vec_fmadd(weight_vec, in_vec, out_vec);
+
+            }
+
+            // Apply constant scale factor
+            out_vec = vec_mul(out_vec, scale_vec);
+
+            // Store the final outputs to aligned output buffer
+            float_t* out_addr = out_buf + aligned_out_i;
+            vec_store(out_addr, out_vec);
+
+          }
+        }
+
+        // Apply bias and activation function
+        for (int i = 0; i < out_height_ * out_channels_; i++ ) {
+          for (int j = 0; j < out_width_; j++ ) {
+            int out_i         = (i * out_width_) + j;
+            int aligned_out_i = (i * out_width_padded_) + j;
+
+            out_buf[aligned_out_i] += b_[out2bias_[out_i]];
+
+            output_[index][out_i] = h_.f(out_buf, aligned_out_i);
+          }
+        }
+
+        return next_ ? next_->forward_propagation(output_[index], index) : output_[index]; // 15.6%
     }
 
     image<> output_to_image(size_t worker_index = 0) const override {
@@ -88,6 +202,13 @@ private:
 
     index3d<layer_size_t> in_;
     index3d<layer_size_t> out_;
+
+    // Special aligned buffer
+
+    size_t strided_in_width_vecs_;
+    size_t strided_in_width_padded_;
+
+    float_t* aligned_strided_in_[CNN_TASK_SIZE];
 };
 
 } // namespace tiny_cnn
