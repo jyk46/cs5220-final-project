@@ -47,12 +47,16 @@
 #define CNN_VLEN_NBYTES 32
 #define CNN_VLEN_NELEM  (32 / sizeof(float_t))
 #define vec         __m256d
+#define veci        __m256i
 #define vec_set1    _mm256_set1_pd
 #define vec_setzero _mm256_setzero_pd
 #define vec_load    _mm256_load_pd
 #define vec_store   _mm256_store_pd
 #define vec_add     _mm256_add_pd
 #define vec_mul     _mm256_mul_pd
+#define vec_fmadd   _mm256_fmadd_pd
+#define vec_set     _mm256_set_epi64x
+#define vec_gather  _mm256_i64gather_pd
 
 namespace tiny_cnn {
 

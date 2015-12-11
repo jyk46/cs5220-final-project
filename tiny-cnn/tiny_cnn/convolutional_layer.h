@@ -203,7 +203,7 @@ public:
 
               // Multiply and accumulate the partial products across
               // vectorized frontier.
-              out_vec = vec_add(out_vec, vec_mul(weight_vec, in_vec));
+              out_vec = vec_fmadd(weight_vec, in_vec, out_vec);
 
             }
 
@@ -310,7 +310,7 @@ public:
               float_t* curr_addr = curr_buf + aligned_curr_i;
               vec      curr_vec  = vec_load(curr_addr);
 
-              prev_vec = vec_add(prev_vec, vec_mul(weight_vec, curr_vec));
+              prev_vec = vec_fmadd(weight_vec, curr_vec, prev_vec);
             }
 
             prev_vec = vec_mul(prev_vec, scale_vec);
@@ -378,7 +378,7 @@ public:
               float_t* prev_addr = prev_buf + aligned_prev_i;
               vec      prev_vec  = vec_load(prev_addr);
 
-              w_vec = vec_add(w_vec, vec_mul(delta_vec, prev_vec));
+              w_vec = vec_fmadd(delta_vec, prev_vec, w_vec);
             }
 
             w_vec = vec_mul(w_vec, scale_vec);
