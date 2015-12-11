@@ -85,10 +85,10 @@ void __attribute__((target(mic))) sample1_convnet(int b, int p, int e, bool offl
         parse_mnist_images("/tmp/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
     }
     else {
-        parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
-        parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-        parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
-        parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+        parse_mnist_labels("/home/bgs53/cs5220-final-project/tiny-cnn/data/train-labels.idx1-ubyte", &train_labels);
+        parse_mnist_images("/home/bgs53/cs5220-final-project/tiny-cnn/data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+        parse_mnist_labels("/home/bgs53/cs5220-final-project/tiny-cnn/data/t10k-labels.idx1-ubyte", &test_labels);
+        parse_mnist_images("/home/bgs53/cs5220-final-project/tiny-cnn/data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
     }
 
     std::cout << "start learning" << std::endl;
@@ -133,6 +133,10 @@ void __attribute__((target(mic))) sample1_convnet(int b, int p, int e, bool offl
     omp_set_dynamic(0);
     omp_set_num_threads(p);
 #endif
+
+// #ifdef CNN_USE_TBB
+//     static tbb::task_scheduler_init init(CNN_TASK_SIZE);
+// #endif
 
     print_parallelism(p);
     std::cout << "Batch size: " << minibatch_size << std::endl;
