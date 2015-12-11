@@ -135,7 +135,7 @@ public:
         check_training_data(in, t);
         if (_init_weight)
             init_weight();
-        layers_.set_parallelize(batch_size < CNN_TASK_SIZE);
+        layers_.set_parallelize(batch_size < nbThreads);
         optimizer_.reset();
 
         for (int iter = 0; iter < epoch; iter++) {
@@ -573,7 +573,7 @@ private:
         layers_.tail()->back_propagation_2nd(delta);
     }
 
-    void bprop(const vec_t& out, const vec_t& t, int idx = 0) {
+    void  bprop(const vec_t& out, const vec_t& t, int idx = 0) {
         vec_t delta(out_dim());
         const activation::function& h = layers_.tail()->activation_function();
 

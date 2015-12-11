@@ -9,7 +9,7 @@ from waflib.Tools.compiler_cxx import cxx_compiler
 
 import sys
 def options(opt):
-    opt.load('compiler_cxx')
+    opt.load('icpc')
     opt.add_option('--TBB',
                    action = 'store_true',
                    default = False,
@@ -45,15 +45,13 @@ def options(opt):
                    default = TBB_ROOT_DEFAULT,
                    help='root directory of TBB [default:%s]' % TBB_ROOT_DEFAULT)
 
-    TARGET_DEFAULT = 'cnn'
+    TARGET_DEFAULT = 'none'
     opt.add_option('--TARGET',
                    action = 'store',
                    default = TARGET_DEFAULT,
                    help='output target name [default:%s]' % TARGET_DEFAULT)
 def configure(conf):
-
-    cxx_compiler['linux'] = ['icpc']
-    conf.load('compiler_cxx')
+    conf.load('icpc')
     if conf.options.TBB:
        conf.define("CNN_USE_TBB", "")
     if conf.options.OMP:

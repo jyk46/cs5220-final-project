@@ -34,6 +34,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <omp.h>
+#include <immintrin.h>
 
 #ifdef CNN_USE_TBB
 #ifndef NOMINMAX
@@ -191,21 +192,21 @@ inline void nop()
 
 #ifdef CNN_USE_TBB
 
-void print_parallelism() {
-    std::cout << "Threading: TBB " << CNN_TASK_SIZE  << std::endl;
+void print_parallelism(int p) {
+    std::cout << "Threading: TBB " << p  << std::endl;
 }
 
 #else
 
     #ifdef CNN_USE_OMP
 
-    void print_parallelism() {
-        std::cout << "Threading: OMP " << CNN_TASK_SIZE << std::endl;
+    void print_parallelism(int p) {
+        std::cout << "Threading: OMP " << p << std::endl;
     }
 
     #else
 
-    void print_parallelism() {
+    void print_parallelism(int p) {
         std::cout << "Threading: None 0" << std::endl;
     }
 
@@ -214,7 +215,7 @@ void print_parallelism() {
 
 #ifdef CNN_USE_TBB
 
-static tbb::task_scheduler_init init(CNN_TASK_SIZE);//tbb::task_scheduler_init::deferred);
+// static tbb::task_scheduler_init init(CNN_TASK_SIZE);//tbb::task_scheduler_init::deferred);
 
 typedef tbb::blocked_range<int> blocked_range;
 typedef tbb::task_group task_group;
@@ -253,36 +254,36 @@ void xparallel_for(size_t begin, size_t end, const Func& f) {
     f(r);
 }
 
-#ifdef CNN_USE_OMP
+// #ifdef CNN_USE_OMP
 
-template<typename Func>
-void parallel_for(int begin, int end, const Func& f) {
-    #pragma omp parallel for
-    for (int i=begin; i<end; ++i)
-        f(blocked_range(i,i+1));
-}
+// template<typename Func>
+// void parallel_for(int begin, int end, const Func& f) {
+//     #pragma omp parallel for
+//     for (int i=begin; i<end; ++i)
+//         f(blocked_range(i,i+1));
+// }
 
-template<typename T, typename U>
-bool const value_representation(U const &value)
-{
-    return static_cast<U>(static_cast<T>(value)) == value;
-}
+// template<typename T, typename U>
+// bool const value_representation(U const &value)
+// {
+//     return static_cast<U>(static_cast<T>(value)) == value;
+// }
 
-template<typename Func>
-void for_(bool parallelize, size_t begin, size_t end, Func f) {
-    // parallelize = parallelize && value_representation<int>(begin);
-    // parallelize = parallelize && value_representation<int>(end);
-    parallelize? parallel_for(static_cast<int>(begin), static_cast<int>(end), f) : xparallel_for(begin, end, f);
-}
+// template<typename Func>
+// void for_(bool parallelize, size_t begin, size_t end, Func f) {
+//     // parallelize = parallelize && value_representation<int>(begin);
+//     // parallelize = parallelize && value_representation<int>(end);
+//     parallelize? parallel_for(static_cast<int>(begin), static_cast<int>(end), f) : xparallel_for(begin, end, f);
+// }
 
-#else
+// #else
 
 template<typename Func>
 void for_(bool /*parallelize*/, size_t begin, size_t end, Func f) { // ignore parallelize if you don't define CNN_USE_TBB
     xparallel_for(begin, end, f);
 }
 
-#endif
+// #endif
 
 class task_group {
 public:
@@ -305,9 +306,9 @@ template <typename Func>
 void for_i(bool parallelize, int size, Func f)
 {
     for_(parallelize, 0, size, [&](const blocked_range& r) {
-#ifdef CNN_USE_OMP
-#pragma omp parallel for
-#endif
+// #ifdef CNN_USE_OMP // TODO: decide if we should have this
+// #pragma omp parallel for
+// #endif
         for (int i = r.begin(); i < r.end(); i++)
             f(i);
     });

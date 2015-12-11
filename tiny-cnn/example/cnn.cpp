@@ -24,14 +24,17 @@
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include <iostream>
 // Ji: Need to disable non-header-only boost libraries on cluster since
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
-#include <boost/progress.hpp>
-#include <omp.h>
 
+// #pragma offload_attribute(push,target(mic))
+#include <boost/progress.hpp>
+#include <iostream>
+#include <omp.h>
+#include <tbb/tbb.h>
 #include "tiny_cnn.h"
+// #pragma offload_attribute(pop)
 //#define NOMINMAX
 //#include "imdebug.h"
 
@@ -43,13 +46,10 @@ void sample4_dropout();
 using namespace tiny_cnn;
 using namespace tiny_cnn::activation;
 
-int main(void) {
-    sample1_convnet();
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // learning convolutional neural networks (LeNet-5 like architecture)
-void sample1_convnet(void) {
+// void __attribute__((target(mic))) sample1_convnet(int b, int p, int e, bool offload) {
+void sample1_convnet(int b, int p, int e, bool offload) {
     // construct LeNet-5 architecture
     network<mse, RMSprop> nn;
 
@@ -80,17 +80,24 @@ void sample1_convnet(void) {
     // load MNIST dataset
     std::vector<label_t> train_labels, test_labels;
     std::vector<vec_t> train_images, test_images;
-
-    parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
-    parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-    parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
-    parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    if(offload) {
+        parse_mnist_labels("/tmp/train-labels.idx1-ubyte", &train_labels);
+        parse_mnist_images("/tmp/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+        parse_mnist_labels("/tmp/t10k-labels.idx1-ubyte", &test_labels);
+        parse_mnist_images("/tmp/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    }
+    else {
+        parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
+        parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+        parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
+        parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    }
 
     std::cout << "start learning" << std::endl;
 
 //    boost::progress_display disp(train_images.size());
 //    boost::timer t;
-    int minibatch_size = 10;
+    int minibatch_size = b;
 
     nn.optimizer().alpha *= std::sqrt(minibatch_size);
 
@@ -107,7 +114,7 @@ void sample1_convnet(void) {
         nn.optimizer().alpha = std::max(0.00001, nn.optimizer().alpha);
 
         double t1 = omp_get_wtime();
-        std::cout << (t1 - t0) << "s elapsed." << std::endl;
+        std::cout << "Epoch time: " << (t1 - t0) << std::endl;
 //        disp.restart(train_images.size());
 //        t.restart();
     };
@@ -129,12 +136,21 @@ void sample1_convnet(void) {
     // training
 #ifdef CNN_USE_OMP
     omp_set_dynamic(0);
-    omp_set_num_threads(CNN_TASK_SIZE);
+    omp_set_num_threads(p);
 #endif
-    print_parallelism();
+
+#ifdef CNN_USE_TBB
+    static tbb::task_scheduler_init init(CNN_TASK_SIZE);
+#endif
+
+// #ifdef CNN_USE_TBB
+//     static tbb::task_scheduler_init init(CNN_TASK_SIZE);
+// #endif
+
+    print_parallelism(p);
     std::cout << "Batch size: " << minibatch_size << std::endl;
     double t0 = omp_get_wtime();
-    nn.train(train_images, train_labels, minibatch_size, 1, on_enumerate_minibatch, on_enumerate_epoch);
+    nn.train(train_images, train_labels, minibatch_size, e, on_enumerate_minibatch, on_enumerate_epoch, true, p);
     double t1 = omp_get_wtime();
     std::cout << "training time: " << t1-t0 << std::endl;
     std::cout << "end training." << std::endl;
@@ -282,4 +298,46 @@ void sample4_dropout()
     // change context to enable all hidden-units
     //f1.set_context(dropout::test_phase);
     //std::cout << res.num_success << "/" << res.num_total << std::endl;
+}
+
+const char* usage =
+    "cnn -- Trains a cnn on MNIST\n"
+    "Flags:\n"
+    "  - b -- Batch size (10)\n"
+    "  - p -- Number of threads to use (10)\n"
+    "  - e -- Number of epochs to run (1)\n"
+    "  - o -- Add this flag if you want to offload to the Phis (false by default)\n";
+
+int main(int argc, char * argv[]) {
+
+    int b = 10;
+    int p = 10;
+    int e = 1;
+    bool offload = false;
+
+    // Option processing
+    extern char* optarg;
+    const char* optstring = "hb:p:e:o";
+    int c;
+    while ((c = getopt(argc, argv, optstring)) != -1) {
+        switch (c) {
+        case 'h':
+            fprintf(stderr, "%s", usage);
+            return -1;
+        case 'b': b = atoi(optarg); break;
+        case 'p': p = atoi(optarg); break;
+        case 'e': e = atoi(optarg); break;
+        case 'o': offload = true;  break;
+        }
+    }
+    if(offload) {
+        std::cout << "Offloading" << std::endl;
+        // #pragma offload target(mic)
+        {
+            sample1_convnet(b, p, e, true);
+        }
+    }
+    else {
+        sample1_convnet(b, p, e, false);
+    }
 }
