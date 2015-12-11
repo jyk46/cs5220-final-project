@@ -90,7 +90,7 @@ void sample1_convnet(void) {
 
 //    boost::progress_display disp(train_images.size());
 //    boost::timer t;
-    int minibatch_size = 200;
+    int minibatch_size = 10;
 
     nn.optimizer().alpha *= std::sqrt(minibatch_size);
 

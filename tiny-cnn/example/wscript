@@ -12,10 +12,9 @@ def build(bld):
       cflags   = ['-Wall', '-openmp'],
       cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp'],
       lib      = [libcxx, 'tbb'],
-			linkflags =['-openmp'],
+      linkflags =['-openmp'],
       libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
-      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT],
-      linkflags = ['-fopenmp'])
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
 
 #    bld(features = 'cxx cprogram',
 #      source = 'main.cpp',
