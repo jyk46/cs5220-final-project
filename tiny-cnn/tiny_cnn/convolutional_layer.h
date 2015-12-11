@@ -351,16 +351,49 @@ public:
           }
         }
 
-        for_(parallelize_, 0, weight2io_.size(), [&](const blocked_range& r) {
-            for (int i = r.begin(); i < r.end(); i++) {
-                float_t diff = 0.0;
+        // Vectorized weight update
 
-                for (auto connection : weight2io_[i]) // 11.9%
-                    diff += prev_out[connection.first] * current_delta[connection.second];
+                 prev_buf = aligned_out_[index];
+        float_t* w_buf    = aligned_w_[index];
 
-                dW_[index][i] += diff * scale_factor_;
+        pack_padded_data(
+            out_width_, out_height_, out_channels_,
+            out_width_padded_, prev_buf, &prev_out[0]
+        );
+
+        for (int i = 0; i < window_width_ * in_channels_ * out_channels_; i++) {
+          for (int j = 0; j < w_width_vecs_; j++) {
+            int w_i         = (i * window_width_) + (j * CNN_VLEN_NELEM);
+            int aligned_w_i = (i * w_width_padded_) + (j * CNN_VLEN_NELEM);
+
+            vec w_vec = vec_setzero();
+
+            for (auto connection : weight2io_[w_i]) {
+              float_t delta     = current_delta[connection.second];
+              vec     delta_vec = vec_set1(delta);
+
+              int aligned_prev_i = calculate_aligned_i(
+                  out_width_, out_width_padded_, connection.first);
+
+              float_t* prev_addr = prev_buf + aligned_prev_i;
+              vec      prev_vec  = vec_load(prev_addr);
+
+              w_vec = vec_add(w_vec, vec_mul(delta_vec, prev_vec));
             }
-        });
+
+            w_vec = vec_mul(w_vec, scale_vec);
+
+            float_t* w_addr = w_buf + aligned_w_i;
+            vec_store(w_addr, w_vec);
+          }
+        }
+
+        unpack_padded_data(
+            window_width_, window_width_, in_channels_ * out_channels_,
+            w_width_padded_, &dW_[index][0], w_buf
+        );
+
+        // Unvectorized bias update
 
         for (size_t i = 0; i < bias2out_.size(); i++) {
             const std::vector<layer_size_t>& outs = bias2out_[i];

@@ -246,10 +246,13 @@ protected:
     size_t in_width_padded_;
     size_t out_width_vecs_;
     size_t out_width_padded_;
+    size_t w_width_vecs_;
+    size_t w_width_padded_;
     size_t window_width_;
 
     float_t* aligned_in_[CNN_TASK_SIZE];
     float_t* aligned_out_[CNN_TASK_SIZE];
+    float_t* aligned_w_[CNN_TASK_SIZE];
 
 private:
     void merge(size_t worker_size, size_t batch_size) {
@@ -294,10 +297,14 @@ private:
                 out_width_vecs_   = (out_width_ + CNN_VLEN_NELEM - 1) / CNN_VLEN_NELEM;
                 out_width_padded_ = out_width_vecs_ * CNN_VLEN_NELEM;
             int out_nbytes        = out_width_padded_ * out_height_ * out_channels_ * sizeof(float_t);
+                w_width_vecs_     = (window_width_ + CNN_VLEN_NELEM - 1) / CNN_VLEN_NELEM;
+                w_width_padded_   = w_width_vecs_ * CNN_VLEN_NELEM;
+            int w_nbytes          = w_width_padded_ * window_width_ * in_channels_ * out_channels_ * sizeof(float_t);
 
             for (int i = 0; i < CNN_TASK_SIZE; i++) {
               aligned_in_[i]  = (float_t*)_mm_malloc(in_nbytes, CNN_VLEN_NBYTES);
               aligned_out_[i] = (float_t*)_mm_malloc(out_nbytes, CNN_VLEN_NBYTES);
+              aligned_w_[i]   = (float_t*)_mm_malloc(w_nbytes, CNN_VLEN_NBYTES);
             }
 
         } catch (const std::bad_alloc&) {
