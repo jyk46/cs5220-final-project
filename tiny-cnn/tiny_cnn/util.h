@@ -81,19 +81,12 @@ inline __attribute__((always_inline))
 void pack_padded_data(int x_size, int y_size, int z_size, int x_size_padded,
                       float_t *data_padded, const float_t *data)
 {
-  int i, j, k;
-  for (k = 0; k < z_size; ++k) {
-    int k_offset        = k * y_size * x_size;
-    int k_offset_padded = k * y_size * x_size_padded;
+  for (int i = 0; i < y_size * z_size; ++i) {
+    int i_offset        = i * x_size;
+    int i_offset_padded = i * x_size_padded;
 
-    for (i = 0; i < y_size; ++i) {
-      int i_offset        = i * x_size;
-      int i_offset_padded = i * x_size_padded;
-
-      for (j = 0; j < x_size; ++j)
-        data_padded[k_offset_padded+i_offset_padded+j]
-            = data[k_offset+i_offset+j];
-    }
+    for (int j = 0; j < x_size; ++j)
+      data_padded[i_offset_padded+j] = data[i_offset+j];
   }
 }
 
@@ -102,21 +95,14 @@ void pack_padded_data(int x_size, int y_size, int z_size, int x_size_padded,
 
 inline __attribute__((always_inline))
 void unpack_padded_data(int x_size, int y_size, int z_size, int x_size_padded,
-                      float_t *data, const float_t *data_padded)
+                        float_t *data, const float_t *data_padded)
 {
-  int i, j, k;
-  for (k = 0; k < z_size; ++k) {
-    int k_offset        = k * y_size * x_size;
-    int k_offset_padded = k * y_size * x_size_padded;
+  for (int i = 0; i < y_size * z_size; ++i) {
+    int i_offset        = i * x_size;
+    int i_offset_padded = i * x_size_padded;
 
-    for (i = 0; i < y_size; ++i) {
-      int i_offset        = i * x_size;
-      int i_offset_padded = i * x_size_padded;
-
-      for (j = 0; j < x_size; ++j)
-        data[k_offset+i_offset+j]
-            = data_padded[k_offset_padded+i_offset_padded+j];
-    }
+    for (int j = 0; j < x_size; ++j)
+      data[i_offset+j] = data_padded[i_offset_padded+j];
   }
 }
 
@@ -428,9 +414,12 @@ Stream& operator << (Stream& s, const index3d<T>& d) {
     using layer_base::in_width_padded_; \
     using layer_base::out_width_vecs_; \
     using layer_base::out_width_padded_; \
+    using layer_base::w_width_vecs_; \
+    using layer_base::w_width_padded_; \
     using layer_base::window_width_; \
     using layer_base::aligned_in_; \
     using layer_base::aligned_out_; \
+    using layer_base::aligned_w_; \
     using layer<Activation>::h_
 
 
