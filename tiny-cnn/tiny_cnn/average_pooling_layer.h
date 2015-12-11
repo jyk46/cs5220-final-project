@@ -45,7 +45,7 @@ public:
            in_channels, in_channels,
            in_width, in_height, in_channels,
            in_width/pooling_size, in_height/pooling_size, in_channels,
-           1.0 / sqr(pooling_size)),
+           pooling_size, 1.0 / sqr(pooling_size)),
       in_(in_width, in_height, in_channels), 
       out_(in_width/pooling_size, in_height/pooling_size, in_channels)
     {

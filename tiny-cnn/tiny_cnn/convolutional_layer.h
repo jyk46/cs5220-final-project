@@ -65,6 +65,9 @@ public:
     using partial_connected_layer<Activation>::scale_factor_;
     using partial_connected_layer<Activation>::out2wi_;
     using partial_connected_layer<Activation>::out2bias_;
+    using partial_connected_layer<Activation>::in2wo_;
+    using partial_connected_layer<Activation>::weight2io_;
+    using partial_connected_layer<Activation>::bias2out_;
 
     /**
      * constructing convolutional layer
@@ -90,7 +93,7 @@ public:
            in_width, in_height, in_channels,
            out_length(in_width, window_size, pad_type),
            out_length(in_height, window_size, pad_type),
-           out_channels),
+           out_channels, window_size),
       in_(in_width, in_height, in_channels),
       out_(out_length(in_width, window_size, pad_type), out_length(in_height, window_size, pad_type), out_channels),
       weight_(window_size, window_size, in_channels*out_channels),
@@ -125,7 +128,7 @@ public:
                in_width, in_height, in_channels,
                out_length(in_width, window_size, pad_type),
                out_length(in_height, window_size, pad_type),
-               out_channels),
+               out_channels, window_size),
           in_(in_width, in_height, in_channels),
           out_(out_length(in_width, window_size, pad_type), out_length(in_height, window_size, pad_type), out_channels),
           weight_(window_size, window_size, in_channels*out_channels),
@@ -136,6 +139,7 @@ public:
         this->remap();
     }
 
+    // Vectorized forward propagation
     const vec_t& forward_propagation(const vec_t& in, size_t index) override {
 
         // Broadcast scale factor to vector register
@@ -161,8 +165,8 @@ public:
         // computation across the columns within a row. All rows are
         // assumed to be padded to the vector length.
 
-        for (int i = 0; i < out_height_ * out_channels_; i++ ) {
-          for (int j = 0; j < out_width_vecs_; j++ ) {
+        for (int i = 0; i < out_height_ * out_channels_; i++) {
+          for (int j = 0; j < out_width_vecs_; j++) {
 
             // Calculate both unaligned/aligned offsets to the output
             // buffer. The former is used to index into the connections
@@ -226,6 +230,149 @@ public:
         }
 
         return next_ ? next_->forward_propagation(output_[index], index) : output_[index]; // 15.6%
+    }
+
+    // Vectorized backward propagation
+    virtual const vec_t& back_propagation(const vec_t& current_delta, size_t index) override {
+        const vec_t& prev_out = prev_->output(index);
+        const activation::function& prev_h = prev_->activation_function();
+        vec_t& prev_delta = prev_delta_[index];
+
+        // Outer loop iterates across the rows in previous delta
+        // buffer. Inner loop vectorizes computation across the columns
+        // within a row. This block is almost identical to the forward
+        // propagation block except for the border handling case in which
+        // the first several elements at the edge of the borders cannot
+        // be vectorized because the same weights are not applied at the
+        // border.
+
+        vec scale_vec = vec_set1(scale_factor_);
+
+        float_t* curr_buf = aligned_out_[index];
+        float_t* prev_buf = aligned_in_[index];
+
+        pack_padded_data(
+            out_width_, out_height_, out_channels_,
+            out_width_padded_, curr_buf, &current_delta[0]
+        );
+
+        // Don't bother doing vectorization if there aren't enough
+        // elements in a row to compute at least one full vector.
+        bool no_vectorization =
+            ((int)(in_width_ - (2 * (window_width_ - 1))) < (int)CNN_VLEN_NELEM);
+
+        for (int i = 0; i < in_height_ * in_channels_; i++) {
+
+          // Handle borders. The first and last window_width_ - 1
+          // elements of all rows cannot be vectorized.
+
+          int preborder_end
+            = (no_vectorization) ? in_width_
+            :                      std::min(window_width_ - 1, in_width_);
+
+          for (int j = 0; j < preborder_end; j++) {
+            int prev_i         = (i * in_width_) + j;
+            int aligned_prev_i = (i * in_width_padded_) + j;
+
+            float_t delta  = 0.0;
+            for (auto connection : in2wo_[prev_i])
+              delta += W_[connection.first] * current_delta[connection.second];
+
+            prev_buf[aligned_prev_i] = delta * scale_factor_;
+          }
+
+          // Skip below if vectorization disabled
+          if (no_vectorization) continue;
+
+          // Handle central elements that can be vectorized. Currently we
+          // assume that the preborder is a multiple of the vector length
+          // (i.e., 5x5 kernel), so that vector memops after the
+          // preborder are still aligned and the rows will always be
+          // padded enough to prevent segfaults.
+
+          int central_start = (window_width_ - 1) / CNN_VLEN_NELEM;
+          int central_end   = in_width_vecs_ - central_start;
+
+          assert(central_end > central_start);
+
+          for (int j = central_start; j < central_end; j++) {
+            int prev_i         = (i * in_width_) + (j * CNN_VLEN_NELEM);
+            int aligned_prev_i = (i * in_width_padded_) + (j * CNN_VLEN_NELEM);
+            vec prev_vec       = vec_setzero();
+
+            for (auto connection : in2wo_[prev_i]) {
+              float_t weight     = W_[connection.first];
+              vec     weight_vec = vec_set1(weight);
+
+              int aligned_curr_i = calculate_aligned_i(
+                  out_width_, out_width_padded_, connection.second);
+
+              float_t* curr_addr = curr_buf + aligned_curr_i;
+              vec      curr_vec  = vec_load(curr_addr);
+
+              prev_vec = vec_add(prev_vec, vec_mul(weight_vec, curr_vec));
+            }
+
+            prev_vec = vec_mul(prev_vec, scale_vec);
+
+            float_t* prev_addr = prev_buf + aligned_prev_i;
+            vec_store(prev_addr, prev_vec);
+          }
+
+          // Handle borders. The first and last window_width_ - 1
+          // elements of all rows cannot be vectorized. There might be
+          // some overlap between the last iteration of the vectorized
+          // loop above and the post-border loop. In this case, the
+          // post-border loop overwrites the junk data from the overlap.
+
+          int postborder_end   = in_width_;
+          int postborder_start = postborder_end - (window_width_ - 1);
+
+          for (int j = postborder_start; j < postborder_end; j++) {
+            int prev_i         = (i * in_width_) + j;
+            int aligned_prev_i = (i * in_width_padded_) + j;
+
+            float_t delta  = 0.0;
+            for (auto connection : in2wo_[prev_i])
+              delta += W_[connection.first] * current_delta[connection.second];
+
+            prev_buf[aligned_prev_i] = delta * scale_factor_;
+          }
+        }
+
+        // Apply activation function
+
+        for (int i = 0; i < in_height_ * in_channels_; i++ ) {
+          for (int j = 0; j < in_width_; j++ ) {
+            int prev_i         = (i * in_width_) + j;
+            int aligned_prev_i = (i * in_width_padded_) + j;
+
+            prev_delta[prev_i] = prev_buf[aligned_prev_i] * prev_h.df(prev_out[prev_i]);
+          }
+        }
+
+        for_(parallelize_, 0, weight2io_.size(), [&](const blocked_range& r) {
+            for (int i = r.begin(); i < r.end(); i++) {
+                float_t diff = 0.0;
+
+                for (auto connection : weight2io_[i]) // 11.9%
+                    diff += prev_out[connection.first] * current_delta[connection.second];
+
+                dW_[index][i] += diff * scale_factor_;
+            }
+        });
+
+        for (size_t i = 0; i < bias2out_.size(); i++) {
+            const std::vector<layer_size_t>& outs = bias2out_[i];
+            float_t diff = 0.0;
+
+            for (auto o : outs)
+                diff += current_delta[o];    
+
+            db_[index][i] += diff;
+        } 
+
+        return prev_->back_propagation(prev_delta_[index], index);
     }
 
     image<> output_to_image(size_t worker_index = 0) const override {

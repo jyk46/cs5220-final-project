@@ -44,10 +44,10 @@ public:
                             size_t weight_dim, size_t bias_dim,
                             size_t in_width, size_t in_height, size_t in_channels,
                             size_t out_width, size_t out_height, size_t out_channels,
-                            float_t scale_factor = 1.0)
+                            size_t window_size, float_t scale_factor = 1.0)
         : Base(in_dim, out_dim, weight_dim, bias_dim,
                in_width, in_height, in_channels,
-               out_width, out_height, out_channels),
+               out_width, out_height, out_channels, window_size),
           weight2io_(weight_dim), out2wi_(out_dim), in2wo_(in_dim), bias2out_(bias_dim), out2bias_(out_dim),
           scale_factor_(scale_factor) {}
 

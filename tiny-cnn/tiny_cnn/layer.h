@@ -47,12 +47,14 @@ public:
     layer_base(layer_size_t in_dim, layer_size_t out_dim,
                size_t weight_dim, size_t bias_dim,
                size_t in_width, size_t in_height, size_t in_channels,
-               size_t out_width, size_t out_height, size_t out_channels)
+               size_t out_width, size_t out_height, size_t out_channels,
+               size_t window_size)
         : parallelize_(true), next_(nullptr), prev_(nullptr),
           weight_init_(std::make_shared<weight_init::xavier>()),
           bias_init_(std::make_shared<weight_init::constant>(0.0)),
           in_width_(in_width), in_height_(in_height), in_channels_(in_channels),
-          out_width_(out_width), out_height_(out_height), out_channels_(out_channels) {
+          out_width_(out_width), out_height_(out_height), out_channels_(out_channels),
+          window_width_(window_size) {
         set_size(in_dim, out_dim, weight_dim, bias_dim);
     }
 
@@ -244,6 +246,7 @@ protected:
     size_t in_width_padded_;
     size_t out_width_vecs_;
     size_t out_width_padded_;
+    size_t window_width_;
 
     float_t* aligned_in_[CNN_TASK_SIZE];
     float_t* aligned_out_[CNN_TASK_SIZE];
@@ -311,10 +314,12 @@ public:
     layer(layer_size_t in_dim, layer_size_t out_dim,
           size_t weight_dim, size_t bias_dim,
           size_t in_width, size_t in_height, size_t in_channels,
-          size_t out_width, size_t out_height, size_t out_channels)
+          size_t out_width, size_t out_height, size_t out_channels,
+          size_t window_size)
         : layer_base(in_dim, out_dim, weight_dim, bias_dim,
                      in_width, in_height, in_channels,
-                     out_width, out_height, out_channels) {}
+                     out_width, out_height, out_channels,
+                     window_size) {}
 
     activation::function& activation_function() override { return h_; }
 protected:
