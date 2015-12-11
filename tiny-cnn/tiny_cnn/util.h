@@ -404,6 +404,7 @@ Stream& operator << (Stream& s, const index3d<T>& d) {
     using layer_base::in_width_padded_; \
     using layer_base::out_width_vecs_; \
     using layer_base::out_width_padded_; \
+    using layer_base::window_width_; \
     using layer_base::aligned_in_; \
     using layer_base::aligned_out_; \
     using layer<Activation>::h_

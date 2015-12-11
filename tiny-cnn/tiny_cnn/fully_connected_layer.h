@@ -39,7 +39,7 @@ public:
 
     fully_connected_layer(layer_size_t in_dim, layer_size_t out_dim)
         : Base(in_dim, out_dim, size_t(in_dim) * out_dim, out_dim,
-               1, 1, in_dim, 1, 1, out_dim), filter_(out_dim) {}
+               1, 1, in_dim, 1, 1, out_dim, 1), filter_(out_dim) {}
 
     size_t connection_size() const override {
         return size_t(in_size_) * out_size_ + out_size_;

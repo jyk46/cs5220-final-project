@@ -43,7 +43,8 @@ public:
                in_width * in_height * in_channels / sqr(pooling_size),
                0, 0,
                in_width, in_height, in_channels,
-               in_width/pooling_size, in_height/pooling_size, in_channels),
+               in_width/pooling_size, in_height/pooling_size,
+               in_channels, pooling_size),
           pool_size_(pooling_size),
           in_(in_width, in_height, in_channels),
           out_(in_width / pooling_size, in_height / pooling_size, in_channels)
