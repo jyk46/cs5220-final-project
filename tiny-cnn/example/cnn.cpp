@@ -34,7 +34,9 @@
 #include <boost/progress.hpp>
 #include <iostream>
 #include <omp.h>
+#ifdef CNN_USE_TBB
 #include <tbb/tbb.h>
+#endif
 #include "tiny_cnn.h"
 #ifdef CNN_USE_AVX512
 #pragma offload_attribute(pop)
@@ -149,10 +151,6 @@ void sample1_convnet(int b, int p, int e) {
 #ifdef CNN_USE_TBB
     static tbb::task_scheduler_init init(CNN_TASK_SIZE);
 #endif
-
-// #ifdef CNN_USE_TBB
-//     static tbb::task_scheduler_init init(CNN_TASK_SIZE);
-// #endif
 
     print_parallelism(p);
     std::cout << "Batch size: " << minibatch_size << std::endl;

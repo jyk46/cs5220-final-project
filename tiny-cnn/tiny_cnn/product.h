@@ -25,7 +25,7 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #pragma once
-#if defined(CNN_USE_SSE) || defined(CNN_USE_AVX)
+#if defined(CNN_USE_SSE) || defined(CNN_USE_AVX) || defined(CNN_USE_AVX512)
 #include <immintrin.h>
 #endif
 #include <cstdint>
@@ -132,7 +132,63 @@ inline bool is_aligned(sse<T>, const typename sse<T>::value_type* p) {
 
 #endif // CNN_USE_SSE
 
-#ifdef CNN_USE_AVX
+#ifdef CNN_USE_AVX512
+
+struct float_avx512 {
+    typedef __m512 register_type;
+    typedef float value_type;
+    enum {
+        unroll_size = 16
+    };
+    static register_type set1(const value_type& x) { return _mm512_set1_ps(x); }
+    static register_type zero() { register_type v = {}; return v; }
+    static register_type mul(const register_type& v1, const register_type& v2) { return _mm512_mul_ps(v1, v2); }
+    static register_type add(const register_type& v1, const register_type& v2) { return _mm512_add_ps(v1, v2); }
+    static register_type load(const value_type* px) { return _mm512_load_ps(px); }
+    static register_type loadu(const value_type* px) { return _mm512_loadu_ps(px); }
+    static void store(value_type* px, const register_type& v) { _mm512_store_ps(px, v); }
+    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_ps(px, v); }
+    static value_type resemble(const register_type& x) {
+        VECTORIZE_ALIGN(64) float tmp[16];
+        _mm512_store_ps(tmp, x);
+        return std::accumulate(tmp, tmp + 16, 0.0f);
+    }
+};
+
+struct double_avx512 {
+    typedef __m512d register_type;
+    typedef double value_type;
+    enum {
+        unroll_size = 8
+    };
+    static register_type set1(const value_type& x) { return _mm512_set1_pd(x); }
+    static register_type zero() { register_type v = {}; return v; }
+    static register_type mul(const register_type& v1, const register_type& v2) { return _mm512_mul_pd(v1, v2); }
+    static register_type add(const register_type& v1, const register_type& v2) { return _mm512_add_pd(v1, v2); }
+    static register_type load(const value_type* px) { return _mm512_load_pd(px); }
+    static register_type loadu(const value_type* px) { return _mm512_loadu_pd(px); }
+    static void store(value_type* px, const register_type& v) { _mm512_store_pd(px, v); }
+    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_pd(px, v); }
+    static value_type resemble(const register_type& x) {
+        VECTORIZE_ALIGN(64) double tmp[8];
+        _mm512_store_pd(tmp, x);
+        return std::accumulate(tmp, tmp + 8, 0.0);
+    }
+};
+
+template<typename T>
+struct avx512 {};
+template<>
+struct avx512<float> : public float_avx512 {};
+template<>
+struct avx512<double> : public double_avx512 {};
+
+template<typename T>
+inline bool is_aligned(avx512<T>, const typename avx512<T>::value_type* p) {
+    return reinterpret_cast<size_t>(p) % 64 == 0;
+}
+
+#elif defined(CNN_USE_AVX)
 
 struct float_avx {
     typedef __m256 register_type;
@@ -487,7 +543,9 @@ inline void fmadd_(
 
 } // namespace detail
 
-#if defined(CNN_USE_AVX)
+#if defined(CNN_USE_AVX512)
+#define VECTORIZE_TYPE detail::avx512<T>
+#elif defined(CNN_USE_AVX)
 #define VECTORIZE_TYPE detail::avx<T>
 #elif defined(CNN_USE_SSE)
 #define VECTORIZE_TYPE detail::sse<T>
