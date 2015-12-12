@@ -258,8 +258,15 @@ public:
 
         // Don't bother doing vectorization if there aren't enough
         // elements in a row to compute at least one full vector.
+        // Also need to disable vectorization for this loop if we're
+        // using AVX-512 for now since the borders don't match the longer
+        // vector length.
         bool no_vectorization =
+        #ifdef CNN_USE_AVX512
+            true;
+        #else
             ((int)(in_width_ - (2 * (window_width_ - 1))) < (int)CNN_VLEN_NELEM);
+        #endif
 
         for (int i = 0; i < in_height_ * in_channels_; i++) {
 

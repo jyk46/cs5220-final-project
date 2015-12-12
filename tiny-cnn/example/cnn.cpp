@@ -28,13 +28,17 @@
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
 
-// #pragma offload_attribute(push,target(mic))
+#ifdef CNN_USE_AVX512
+#pragma offload_attribute(push,target(mic))
+#endif
 #include <boost/progress.hpp>
 #include <iostream>
 #include <omp.h>
 #include <tbb/tbb.h>
 #include "tiny_cnn.h"
-// #pragma offload_attribute(pop)
+#ifdef CNN_USE_AVX512
+#pragma offload_attribute(pop)
+#endif
 //#define NOMINMAX
 //#include "imdebug.h"
 
@@ -48,8 +52,11 @@ using namespace tiny_cnn::activation;
 
 ///////////////////////////////////////////////////////////////////////////////
 // learning convolutional neural networks (LeNet-5 like architecture)
-// void __attribute__((target(mic))) sample1_convnet(int b, int p, int e, bool offload) {
-void sample1_convnet(int b, int p, int e, bool offload) {
+#ifdef CNN_USE_AVX512
+void __attribute__((target(mic))) sample1_convnet(int b, int p, int e) {
+#else
+void sample1_convnet(int b, int p, int e) {
+#endif
     // construct LeNet-5 architecture
     network<mse, RMSprop> nn;
 
@@ -80,18 +87,18 @@ void sample1_convnet(int b, int p, int e, bool offload) {
     // load MNIST dataset
     std::vector<label_t> train_labels, test_labels;
     std::vector<vec_t> train_images, test_images;
-    if(offload) {
-        parse_mnist_labels("/tmp/train-labels.idx1-ubyte", &train_labels);
-        parse_mnist_images("/tmp/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-        parse_mnist_labels("/tmp/t10k-labels.idx1-ubyte", &test_labels);
-        parse_mnist_images("/tmp/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
-    }
-    else {
-        parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
-        parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
-        parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
-        parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
-    }
+
+    #ifdef CNN_USE_AVX512
+    parse_mnist_labels("/tmp/train-labels.idx1-ubyte", &train_labels);
+    parse_mnist_images("/tmp/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("/tmp/t10k-labels.idx1-ubyte", &test_labels);
+    parse_mnist_images("/tmp/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    #else
+    parse_mnist_labels("./data/train-labels.idx1-ubyte", &train_labels);
+    parse_mnist_images("./data/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
+    parse_mnist_labels("./data/t10k-labels.idx1-ubyte", &test_labels);
+    parse_mnist_images("./data/t10k-images.idx3-ubyte", &test_images, -1.0, 1.0, 2, 2);
+    #endif
 
     std::cout << "start learning" << std::endl;
 
@@ -305,19 +312,17 @@ const char* usage =
     "Flags:\n"
     "  - b -- Batch size (10)\n"
     "  - p -- Number of threads to use (10)\n"
-    "  - e -- Number of epochs to run (1)\n"
-    "  - o -- Add this flag if you want to offload to the Phis (false by default)\n";
+    "  - e -- Number of epochs to run (1)\n";
 
 int main(int argc, char * argv[]) {
 
     int b = 10;
     int p = 10;
     int e = 1;
-    bool offload = false;
 
     // Option processing
     extern char* optarg;
-    const char* optstring = "hb:p:e:o";
+    const char* optstring = "hb:p:e";
     int c;
     while ((c = getopt(argc, argv, optstring)) != -1) {
         switch (c) {
@@ -327,17 +332,16 @@ int main(int argc, char * argv[]) {
         case 'b': b = atoi(optarg); break;
         case 'p': p = atoi(optarg); break;
         case 'e': e = atoi(optarg); break;
-        case 'o': offload = true;  break;
         }
     }
-    if(offload) {
-        std::cout << "Offloading" << std::endl;
-        // #pragma offload target(mic)
-        {
-            sample1_convnet(b, p, e, true);
-        }
+
+    #ifdef CNN_USE_AVX512
+    std::cout << "Offloading" << std::endl;
+    #pragma offload target(mic)
+    {
+        sample1_convnet(b, p, e);
     }
-    else {
-        sample1_convnet(b, p, e, false);
-    }
+    #else
+        sample1_convnet(b, p, e);
+    #endif
 }

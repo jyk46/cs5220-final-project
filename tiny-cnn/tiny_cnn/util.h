@@ -45,6 +45,24 @@
 #endif
 
 #define CNN_UNREFERENCED_PARAMETER(x) (void)(x)
+
+// Define vector intrinsics for AVX2 and AVX-512
+
+#ifdef CNN_USE_AVX512
+#define CNN_VLEN_NBYTES 64
+#define CNN_VLEN_NELEM  (64 / sizeof(float_t))
+#define vec         __m512d
+#define veci        __m512i
+#define vec_set1    _mm512_set1_pd
+#define vec_setzero _mm512_setzero_pd
+#define vec_load    _mm512_load_pd
+#define vec_store   _mm512_store_pd
+#define vec_add     _mm512_add_pd
+#define vec_mul     _mm512_mul_pd
+#define vec_fmadd   _mm512_fmadd_pd
+#define vec_set     _mm512_set_epi64
+#define vec_gather  _mm512_i64gather_pd
+#else
 #define CNN_VLEN_NBYTES 32
 #define CNN_VLEN_NELEM  (32 / sizeof(float_t))
 #define vec         __m256d
@@ -58,6 +76,7 @@
 #define vec_fmadd   _mm256_fmadd_pd
 #define vec_set     _mm256_set_epi64x
 #define vec_gather  _mm256_i64gather_pd
+#endif
 
 namespace tiny_cnn {
 

@@ -77,6 +77,12 @@ public:
 
         // Set stride for input load
         veci stride_vec = vec_set(
+          #ifdef CNN_USE_AVX512
+          window_width_ * 7,
+          window_width_ * 6,
+          window_width_ * 5,
+          window_width_ * 4,
+          #endif
           window_width_ * 3,
           window_width_ * 2,
           window_width_ * 1,
@@ -139,7 +145,14 @@ public:
                   in_width_, strided_in_width_padded_, connection.second);
 
               float_t* in_addr = in_buf + aligned_in_i;
-              vec      in_vec  = vec_gather(in_addr, stride_vec, 8);
+
+              // Annoyingly, AVX-512 version of the gather flips the
+              // vindex and base_addr arguments around.
+              #ifdef CNN_USE_AVX512
+              vec in_vec = vec_gather(stride_vec, in_addr, 8);
+              #else
+              vec in_vec = vec_gather(in_addr, stride_vec, 8);
+              #endif
 
               // Multiply and accumulate the partial products across
               // vectorized frontier.

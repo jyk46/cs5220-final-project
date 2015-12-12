@@ -27,6 +27,11 @@ def options(opt):
                    default = False,
                    help='enable SSE vectorization [default:False]')
 
+    opt.add_option('--OFFLOAD',
+                   action = 'store_true',
+                   default = False,
+                   help='enable offloading to MIC [default:False]')
+
     if sys.platform.startswith('win'):
         BOOST_ROOT_DEFAULT = 'C:/Program Files/boost/boost_1_51_0/'
     else:
@@ -50,6 +55,7 @@ def options(opt):
                    action = 'store',
                    default = TARGET_DEFAULT,
                    help='output target name [default:%s]' % TARGET_DEFAULT)
+
 def configure(conf):
     conf.load('icpc')
     if conf.options.TBB:
@@ -60,6 +66,8 @@ def configure(conf):
        conf.define("CNN_USE_AVX", "")
     if conf.options.SSE:
        conf.define("CNN_USE_SSE", "")
+    if conf.options.OFFLOAD:
+		   conf.define("CNN_USE_AVX512", "")
     conf.env.TBB_ROOT = conf.options.TBB_ROOT
     conf.env.BOOST_ROOT = conf.options.BOOST_ROOT
     conf.env.TARGET = conf.options.TARGET
