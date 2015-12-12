@@ -10,7 +10,7 @@ def build(bld):
       source = 'cnn.cpp',
       target = bld.env.TARGET,
       cflags   = ['-Wall', '-openmp'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp', '-ipo'],
       lib      = [libcxx, 'tbb'],
       linkflags =['-openmp'],
       libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],

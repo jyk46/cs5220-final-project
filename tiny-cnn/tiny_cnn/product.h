@@ -140,14 +140,26 @@ struct float_avx512 {
     enum {
         unroll_size = 16
     };
+    static register_type set(const value_type& v0, const value_type& v1,
+                             const value_type& v2, const value_type& v3,
+                             const value_type& v4, const value_type& v5,
+                             const value_type& v6, const value_type& v7,
+                             const value_type& v8, const value_type& v9,
+                             const value_type& v10, const value_type& v11,
+                             const value_type& v12, const value_type& v13,
+                             const value_type& v14, const value_type& v15)
+    {
+      return _mm512_set_ps(v15, v14, v13, v12, v11, v10, v9, v8,
+                           v7, v6, v5, v4, v3, v2, v1, v0);
+    }
     static register_type set1(const value_type& x) { return _mm512_set1_ps(x); }
     static register_type zero() { register_type v = {}; return v; }
     static register_type mul(const register_type& v1, const register_type& v2) { return _mm512_mul_ps(v1, v2); }
     static register_type add(const register_type& v1, const register_type& v2) { return _mm512_add_ps(v1, v2); }
     static register_type load(const value_type* px) { return _mm512_load_ps(px); }
-    static register_type loadu(const value_type* px) { return _mm512_loadu_ps(px); }
+//    static register_type loadu(const value_type* px) { return _mm512_loadu_ps(px); }
     static void store(value_type* px, const register_type& v) { _mm512_store_ps(px, v); }
-    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_ps(px, v); }
+//    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_ps(px, v); }
     static value_type resemble(const register_type& x) {
         VECTORIZE_ALIGN(64) float tmp[16];
         _mm512_store_ps(tmp, x);
@@ -161,14 +173,21 @@ struct double_avx512 {
     enum {
         unroll_size = 8
     };
+    static register_type set(const value_type& v0, const value_type& v1,
+                             const value_type& v2, const value_type& v3,
+                             const value_type& v4, const value_type& v5,
+                             const value_type& v6, const value_type& v7)
+    {
+      return _mm512_set_pd(v7, v6, v5, v4, v3, v2, v1, v0);
+    }
     static register_type set1(const value_type& x) { return _mm512_set1_pd(x); }
     static register_type zero() { register_type v = {}; return v; }
     static register_type mul(const register_type& v1, const register_type& v2) { return _mm512_mul_pd(v1, v2); }
     static register_type add(const register_type& v1, const register_type& v2) { return _mm512_add_pd(v1, v2); }
     static register_type load(const value_type* px) { return _mm512_load_pd(px); }
-    static register_type loadu(const value_type* px) { return _mm512_loadu_pd(px); }
+//    static register_type loadu(const value_type* px) { return _mm512_loadu_pd(px); }
     static void store(value_type* px, const register_type& v) { _mm512_store_pd(px, v); }
-    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_pd(px, v); }
+//    static void storeu(value_type* px, const register_type& v) { _mm512_storeu_pd(px, v); }
     static value_type resemble(const register_type& x) {
         VECTORIZE_ALIGN(64) double tmp[8];
         _mm512_store_pd(tmp, x);
@@ -335,8 +354,39 @@ template<typename T>
 inline typename T::value_type dot_product_nonaligned(const typename T::value_type* f1, const typename T::value_type* f2, unsigned int size) {
     typename T::register_type result = T::zero();
 
-    for (unsigned int i = 0; i < size/T::unroll_size; i++)
+    for (unsigned int i = 0; i < size/T::unroll_size; i++) {
+    // The version of ICC in the course does not support unaligned
+    // vector memops for AVX-512, so we need to use scalar loads to fill
+    // the vector registers for the multiply. This assumes operation on
+    // doubles only!
+    #ifdef CNN_USE_AVX512
+        typename T::register_type f1_vec = _mm512_set_pd(
+            f1[i*T::unroll_size+7],
+            f1[i*T::unroll_size+6],
+            f1[i*T::unroll_size+5],
+            f1[i*T::unroll_size+4],
+            f1[i*T::unroll_size+3],
+            f1[i*T::unroll_size+2],
+            f1[i*T::unroll_size+1],
+            f1[i*T::unroll_size+0]
+        );
+
+        typename T::register_type f2_vec = _mm512_set_pd(
+            f2[i*T::unroll_size+7],
+            f2[i*T::unroll_size+6],
+            f2[i*T::unroll_size+5],
+            f2[i*T::unroll_size+4],
+            f2[i*T::unroll_size+3],
+            f2[i*T::unroll_size+2],
+            f2[i*T::unroll_size+1],
+            f2[i*T::unroll_size+0]
+        );
+
+        result = T::add(result, T::mul(f1_vec, f2_vec));
+    #else
         result = T::add(result, T::mul(T::loadu(&f1[i*T::unroll_size]), T::loadu(&f2[i*T::unroll_size])));
+    #endif
+    }
 
     typename T::value_type sum = T::resemble(result);
 
@@ -382,6 +432,17 @@ inline void muladd_aligned(const typename T::value_type* src, typename T::value_
 
 template<typename T>
 inline void muladd_nonaligned(const typename T::value_type* src, typename T::value_type c, unsigned int size, typename T::value_type* dst) {
+
+    // The version of ICC in the course does not support unaligned
+    // vector memops for AVX-512, so we need to use scalar loads to fill
+    // the vector registers for the multiply. This assumes operation on
+    // doubles only!
+
+    #ifdef CNN_USE_AVX512
+    for (unsigned int i = 0; i < size; i++)
+        dst[i] += src[i] * c;
+    #else
+
     typename T::register_type factor = T::set1(c);
 
     for (unsigned int i = 0; i < size/T::unroll_size; i++) {
@@ -392,6 +453,8 @@ inline void muladd_nonaligned(const typename T::value_type* src, typename T::val
 
     for (unsigned int i = (size/T::unroll_size)*T::unroll_size; i < size; i++)
         dst[i] += src[i] * c;
+
+    #endif
 }
 
 template<typename T>
@@ -408,6 +471,17 @@ inline void reduce_aligned(const typename T::value_type* src, unsigned int size,
 
 template<typename T>
 inline void reduce_nonaligned(const typename T::value_type* src, unsigned int size, typename T::value_type* dst) {
+
+    // The version of ICC in the course does not support unaligned
+    // vector memops for AVX-512, so we need to use scalar loads to fill
+    // the vector registers for the multiply. This assumes operation on
+    // doubles only!
+
+    #ifdef CNN_USE_AVX512
+    for (unsigned int i = 0; i < size; i++)
+        dst[i] += src[i];
+    #else
+
     for (unsigned int i = 0; i < size/T::unroll_size; i++) {
         typename T::register_type d = T::loadu(&dst[i*T::unroll_size]);
         typename T::register_type s = T::loadu(&src[i*T::unroll_size]);
@@ -416,6 +490,8 @@ inline void reduce_nonaligned(const typename T::value_type* src, unsigned int si
 
     for (unsigned int i = (size/T::unroll_size)*T::unroll_size; i < size; i++)
         dst[i] += src[i];
+
+    #endif
 }
 
 // Set specified number of elements starting from the specified address
