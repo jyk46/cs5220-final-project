@@ -75,10 +75,20 @@ __m512d vec_load(const double* addr)
 
   // Unaligned load
   else {
-    __m512d load_vec = _mm512_setzero_pd();
-    load_vec = _mm512_loadunpacklo_pd(load_vec, (void*)addr);
-    load_vec = _mm512_loadunpackhi_pd(load_vec, (void*)(addr+8));
-    return load_vec;
+    __m512i stride_vec = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
+    return _mm512_i64gather_pd(stride_vec, (void*)addr, 8);
+//    __m512d load_vec = _mm512_setzero_pd();
+//
+//    asm(
+//      "vloadunpacklpd %0, (%1);"
+//      "vloadunpackhpd %0, 64(%1);"
+//      : "=x"(load_vec)
+//      : "r"(addr)
+//    );
+//
+//    load_vec = _mm512_loadunpacklo_pd(load_vec, (void*)addr);
+//    load_vec = _mm512_loadunpackhi_pd(load_vec, (void*)(addr+8));
+//    return load_vec;
   }
 }
 
@@ -96,8 +106,10 @@ void vec_store(const double* addr, const __m512d& store_vec)
 
   // Unaligned store
   else {
-    _mm512_packstorelo_pd((void*)addr, store_vec);
-    _mm512_packstorehi_pd((void*)(addr+8), store_vec);
+    __m512i stride_vec = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
+    _mm512_i64scatter_pd((void*)addr, stride_vec, store_vec, 8);
+//    _mm512_packstorelo_pd((void*)addr, store_vec);
+//    _mm512_packstorehi_pd((void*)(addr+8), store_vec);
   }
 }
 
