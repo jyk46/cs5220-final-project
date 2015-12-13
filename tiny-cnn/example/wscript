@@ -8,13 +8,51 @@ def build(bld):
     # Ji: need to disable boost libraries on cluster until staff installs
     bld(features = 'cxx cprogram',
       source = 'cnn.cpp',
-      target = bld.env.TARGET,
+      target = 'offload',
       cflags   = ['-Wall', '-openmp'],
-      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp', '-ipo'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp', '-ipo', '-no-prec-div'],
       lib      = [libcxx, 'tbb'],
       linkflags =['-openmp'],
-      libpath  = ['../', bld.env.TBB_ROOT + '/../lib/intel64/gcc4.4'],
-      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT])
+      libpath  = ['../', bld.env.TBB_ROOT + '/lib/intel64/gcc4.4'],
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT + '/include'],
+      defines = ['CNN_USE_OFFLOAD', 'CNN_USE_AVX512', 'CNN_USE_OMP', 'CNN_USE_AVX']
+    )
+
+    bld(features = 'cxx cprogram',
+      source = 'cnn.cpp',
+      target = 'mic',
+      cflags   = ['-Wall', '-openmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-openmp', '-ipo', '-no-prec-div', '-mmic'],
+      lib      = [libcxx],
+      linkflags =['-openmp', '-mmic'],
+      libpath  = ['../', bld.env.TBB_ROOT + '/lib/mic'],
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT + '/include'],
+      defines = ['CNN_USE_AVX512', 'CNN_USE_OMP', 'CNN_USE_AVX']
+    )
+
+    bld(features = 'cxx cprogram',
+      source = 'cnn.cpp',
+      target = 'omp',
+      cflags   = ['-Wall', '-openmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp', '-ipo', '-no-prec-div'],
+      lib      = [libcxx, 'tbb'],
+      linkflags =['-openmp'],
+      libpath  = ['../', bld.env.TBB_ROOT + '/lib/intel64/gcc4.4'],
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT + '/include'],
+      defines = ['CNN_USE_OMP', 'CNN_USE_AVX']
+    )
+
+    bld(features = 'cxx cprogram',
+      source = 'cnn.cpp',
+      target = 'tbb',
+      cflags   = ['-Wall', '-openmp'],
+      cxxflags = ['-std=c++0x', '-Wall', '-s', '-Ofast', '-xcore-avx2', '-openmp', '-ipo', '-no-prec-div'],
+      lib      = [libcxx, 'tbb'],
+      linkflags =['-openmp'],
+      libpath  = ['../', bld.env.TBB_ROOT + '/lib/intel64/gcc4.4'],
+      includes = ['.', '../tiny_cnn', bld.env.BOOST_ROOT, bld.env.TBB_ROOT + '/include'],
+      defines = ['CNN_USE_TBB', 'CNN_USE_AVX']
+    )
 
 #    bld(features = 'cxx cprogram',
 #      source = 'main.cpp',

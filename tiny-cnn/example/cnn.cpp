@@ -28,7 +28,7 @@
 // compute nodes do not have boost dynamic libraries installed.
 //#include <boost/timer.hpp>
 
-#ifdef CNN_USE_AVX512
+#ifdef CNN_USE_OFFLOAD
 #pragma offload_attribute(push,target(mic))
 #endif
 #include <boost/progress.hpp>
@@ -38,7 +38,7 @@
 #include <tbb/tbb.h>
 #endif
 #include "tiny_cnn.h"
-#ifdef CNN_USE_AVX512
+#ifdef CNN_USE_OFFLOAD
 #pragma offload_attribute(pop)
 #endif
 //#define NOMINMAX
@@ -54,7 +54,7 @@ using namespace tiny_cnn::activation;
 
 ///////////////////////////////////////////////////////////////////////////////
 // learning convolutional neural networks (LeNet-5 like architecture)
-#ifdef CNN_USE_AVX512
+#ifdef CNN_USE_OFFLOAD
 void __attribute__((target(mic))) sample1_convnet(int b, int p, int e) {
 #else
 void sample1_convnet(int b, int p, int e) {
@@ -90,7 +90,7 @@ void sample1_convnet(int b, int p, int e) {
     std::vector<label_t> train_labels, test_labels;
     std::vector<vec_t> train_images, test_images;
 
-    #ifdef CNN_USE_AVX512
+    #ifdef CNN_USE_OFFLOAD
     parse_mnist_labels("/tmp/train-labels.idx1-ubyte", &train_labels);
     parse_mnist_images("/tmp/train-images.idx3-ubyte", &train_images, -1.0, 1.0, 2, 2);
     parse_mnist_labels("/tmp/t10k-labels.idx1-ubyte", &test_labels);
@@ -333,7 +333,7 @@ int main(int argc, char * argv[]) {
         }
     }
 
-    #ifdef CNN_USE_AVX512
+    #ifdef CNN_USE_OFFLOAD
     std::cout << "Offloading" << std::endl;
     #pragma offload target(mic)
     {

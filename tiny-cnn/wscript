@@ -10,27 +10,10 @@ from waflib.Tools.compiler_cxx import cxx_compiler
 import sys
 def options(opt):
     opt.load('icpc')
-    opt.add_option('--TBB',
-                   action = 'store_true',
-                   default = False,
-                   help='enable TBB parallelization [default:False]')
-    opt.add_option('--OMP',
-                   action = 'store_true',
-                   default = False,
-                   help='enable OMP parallelization [default:False]')
-    opt.add_option('--AVX',
-                   action = 'store_true',
-                   default = False,
-                   help='enable AVX vectorization [default:False]')
     opt.add_option('--SSE',
                    action = 'store_true',
                    default = False,
                    help='enable SSE vectorization [default:False]')
-
-    opt.add_option('--OFFLOAD',
-                   action = 'store_true',
-                   default = False,
-                   help='enable offloading to MIC [default:False]')
 
     if sys.platform.startswith('win'):
         BOOST_ROOT_DEFAULT = 'C:/Program Files/boost/boost_1_51_0/'
@@ -50,27 +33,12 @@ def options(opt):
                    default = TBB_ROOT_DEFAULT,
                    help='root directory of TBB [default:%s]' % TBB_ROOT_DEFAULT)
 
-    TARGET_DEFAULT = 'none'
-    opt.add_option('--TARGET',
-                   action = 'store',
-                   default = TARGET_DEFAULT,
-                   help='output target name [default:%s]' % TARGET_DEFAULT)
-
 def configure(conf):
     conf.load('icpc')
-    if conf.options.TBB:
-       conf.define("CNN_USE_TBB", "")
-    if conf.options.OMP:
-       conf.define("CNN_USE_OMP", "")
-    if conf.options.AVX:
-       conf.define("CNN_USE_AVX", "")
     if conf.options.SSE:
        conf.define("CNN_USE_SSE", "")
-    if conf.options.OFFLOAD:
-		   conf.define("CNN_USE_AVX512", "")
     conf.env.TBB_ROOT = conf.options.TBB_ROOT
     conf.env.BOOST_ROOT = conf.options.BOOST_ROOT
-    conf.env.TARGET = conf.options.TARGET
 
 def build(bld):
     bld.recurse('example')
