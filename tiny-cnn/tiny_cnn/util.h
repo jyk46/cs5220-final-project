@@ -55,13 +55,52 @@
 #define veci        __m512i
 #define vec_set1    _mm512_set1_pd
 #define vec_setzero _mm512_setzero_pd
-#define vec_load    _mm512_load_pd
-#define vec_store   _mm512_store_pd
 #define vec_add     _mm512_add_pd
 #define vec_mul     _mm512_mul_pd
 #define vec_fmadd   _mm512_fmadd_pd
 #define vec_set     _mm512_set_epi64
 #define vec_gather  _mm512_i64gather_pd
+
+// The version of ICC in the course does not support unaligned vector
+// memops for AVX-512, so we need to get around this by splitting any
+// unaligned loads into two aligned loads to get the two cache lines that
+// the required vector spans, then unpack the corresponding elements into
+// the result vector register.
+inline __attribute__((always_inline))
+__m512d vec_load(const double* addr)
+{
+  // Aligned load
+  if (reinterpret_cast<size_t>(addr) % 64 == 0)
+    return _mm512_load_pd((void*)addr);
+
+  // Unaligned load
+  else {
+    __m512d load_vec = _mm512_setzero_pd();
+    load_vec = _mm512_loadunpacklo_pd(load_vec, (void*)addr);
+    load_vec = _mm512_loadunpackhi_pd(load_vec, (void*)(addr+8));
+    return load_vec;
+  }
+}
+
+// The version of ICC in the course does not support unaligned vector
+// memops for AVX-512, so we need to get around this by splitting any
+// unaligned stores into two aligned stores, each of which only stores
+// the elements in the vector register corresponding to the data in each
+// cache line.
+inline __attribute__((always_inline))
+void vec_store(const double* addr, const __m512d& store_vec)
+{
+  // Aligned store
+  if (reinterpret_cast<size_t>(addr) % 64 == 0)
+    _mm512_store_pd((void*)addr, store_vec);
+
+  // Unaligned store
+  else {
+    _mm512_packstorelo_pd((void*)addr, store_vec);
+    _mm512_packstorehi_pd((void*)(addr+8), store_vec);
+  }
+}
+
 #else
 #define CNN_VLEN_NBYTES 32
 #define CNN_VLEN_NELEM  (32 / sizeof(float_t))
