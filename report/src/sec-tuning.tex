@@ -10,8 +10,6 @@
 
 \input{fig-tuning-vectorization-convolution}
 \input{fig-tuning-vectorization-convolution-access}
-\input{fig-tuning-vectorization-pooling}
-\input{fig-tuning-vectorization-pooling-access}
 
 As we learned from previous assignments in the course, it is necessary to
 maximize and leverage opportunities for vectorization in order to achieve
@@ -57,7 +55,53 @@ figure only shows the first three weights being applied, all nine weights
 must be applied before storing the result back to the output in
 memory. The operations required for computing a vector of output elements
 using an $N$x$N$ filter are $N^2$ vector loads, $N^2$ vector
-multiply-adds, and one vector store.
+multiply-adds, and one vector store. This vectorization strategy
+emphasizes arithmetic intensity by amortizing the utilization of the
+input elements being brought into the cache across multiple output
+elements.
+
+The backward propagation is composed of three separate loops: the
+gradient update, the weight update, and the bias update. Of these, we
+only vectorized the first two since the bias update had a relatively
+negligible impact on the performance bottleneck. All of the loops in
+backward propagation flip the input and the output: we vectorize across
+the input elements which are calculated from multiplying the weights with
+the output elements. As the name suggests, data is pushed backwards
+through the CNN pipeline. The gradient update is vectorized in a similar
+way to the forward propagation, except for special border handling
+logic. This is necessary because the output dimensions are always smaller
+than the input dimensions, so the unit-stride access pattern we observed
+before does not occur when computing input elements within a $N/2$-wide
+border around the input. For example, using
+Figure~\ref{fig-tuning-vectorization-convolution-access} as the
+reference, we can only vectorize the input elements $a7-a10$, $a13-a16$,
+etc. To handle this case, we use a \emph{pre-border} sub-loop with
+scalarized computation for the border before vectorized computation,
+followed by the vectorized sub-loop, finally ending with a
+\emph{post-border} sub-loop. We only bother vectorizing the center of the
+input if there is at least one full vector's worth of data that can be
+computed in the center, otherwise we use scalarized computation for the
+entire input. The weight update operates on the weight correction (i.e.,
+\texttt{dW}) array, thus avoids this border handling issue. This loop is
+vectorized in the same way as the forward propagation except that the
+input elements are the common multiplier and the weights are the elements
+being vector loaded.
+
+\input{fig-tuning-vectorization-pooling}
+\input{fig-tuning-vectorization-pooling-access}
+
+Figure~\ref{fig-tuning-vectorization-pooling} shows the vectorization
+strategy for the forward propagation in the pooling layer. The heart of
+the strategy here is essentially the same as described above, except for
+the key difference of using vector gathers for loading the input
+elements. Contrary to the convolutional layer, the pooling layer has a
+non-unit-stride for the filter--in other words, consecutive output
+elements do not access consecutive input elements. The memory access
+pattern for the inputs is dependent on the stride of the filter (i.e.,
+dimensions of the filter) as shown in
+Figure~\ref{fig-tuning-vectorization-pooling-access}. In this example, we
+need to access the input using a vector gather with a stride of two,
+before multiplying with the common weight.
 
 \subsection{Memory Layout}
 \label{sec-tuning-memory}
@@ -75,17 +119,17 @@ references, and the output is stored in the aligned scratchpad. Once all
 elements in the output are computed, the data in the aligned scratchpad
 is copied to the default unaligned data structure.
 
-The inputs/outputs are arranged in row-major order in memory where the
-$X$x$Y$x$Z$ dimensions are flattened into a 1D array. All filters are
-also flattened into a 1D array (i.e., $N$x$N$x$Z$x$M$, for $M$
-filters). If the filter dimensions are less than the input dimensions,
-which is the common case, we cannot naively process consecutive vectors'
-worth of elements in the output in this flattened 1D array. This is
-because the unit-stride access we saw before only holds for elements in
-the same \emph{row} of the output (i.e., $X$-dimension), so we cannot
-allow a vector to span multiple rows. It follows then, that the aligned
-data structures needed to be padded to a multiple of the vector length on
-a \emph{per-row} basis as shown in
+The inputs/outputs/weights are arranged in row-major order in memory
+where the $X$x$Y$x$Z$ dimensions are flattened into a 1D array. All
+filters are also flattened into a 1D array (i.e., $N$x$N$x$Z$x$M$, for
+$M$ filters). If the filter dimensions are less than the input
+dimensions, which is the common case, we cannot naively process
+consecutive vectors' worth of elements in the output in this flattened 1D
+array. This is because the unit-stride access we saw before only holds
+for elements in the same \emph{row} of the output (i.e., $X$-dimension),
+so we cannot allow a vector to span multiple rows. It follows then, that
+the aligned data structures needed to be padded to a multiple of the
+vector length on a \emph{per-row} basis as shown in
 Figure~\ref{fig-tuning-vectorization-pooling-access}. For pooling layers,
 this padding needs to a multiple of the vector length times the stride of
 the pooling filter. As such, the innermost loop in the propagation
@@ -117,7 +161,9 @@ challenges with the compiler, the last resort for enabling unaligned
 loads/stores on the MIC was to use gather/scatter intrinsics with the
 stride set to one. This is not desirable since gathers/scatters are
 effectively equivalent to doing a separate scalar load for every element
-in the vector, but it was the only option left.
+in the vector, but it was the only option left. We dynamically detect
+when a vector/load store can be aligned/unaligned by checking the base
+address.
 
 The issue with unaligned loads is a consequence of vectorizing
 computation across consecutive elements within a row of the output. This
@@ -128,4 +174,7 @@ attempted, but we aborted because this would have required us to change
 the way the data was laid out in memory for all major data structures in
 the code. Specifically, all data structures would have had to be
 converted to $Z$-major order (instead of $X$-major order), so that we
-could do vector loads across the $Z$-dimension.
+could do vector loads across the $Z$-dimension. One tradeoff with this
+alternative, however, is that we would have to do a vector store every
+time we compute a partial product, instead of accumulating all partial
+products in a single vector register.
