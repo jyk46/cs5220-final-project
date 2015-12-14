@@ -5,3 +5,36 @@
 \section{Introduction}
 \label{sec-intro}
 
+Convolutional neural networks (CNNs) are computational models based on
+biological neural networks that are used for many classification tasks,
+particularly in computer vision. Made popular by Yann LeCun in 1998 with
+his team's seminal LeNet-5 network used for digit recognition, CNNs have
+continued to evolve and have more recently been used in \emph{deep}
+neural networks for more complex classification problems ranging from
+audio/visual to language processing.
+
+There is a rich foundation of work on parallelizing CNNs to improve the
+performance of the training and classification phases of CNNs. Much of
+this work focuses on the development of parallel libraries for
+general-purpose CPUs and GPUs to streamline the development of
+next-generation CNNs such as Theano, Caffe, and Torch. However, there has
+been much less work on parallelizing CNNs for Many Integrated Core (MIC)
+architectures such as the Intel Xeon Phi. One relevant example is a
+preliminary analysis of the potential speedups one could achieve using
+the Intel Xeon Phi by Viebke and Pllana.
+
+For this project, we chose to use \textbf{tiny-cnn} as the baseline CNN
+implementation. tiny-cnn is an individually developed, lightweight,
+C++-based CNN framework for embedded systems, and is capable of achieving
+competitive performance for digit classification tasks. Although not as
+aggressive or flexible as more conventional libraries like caffe, it also
+has a smaller set of dependencies and a tighter codebase that is more
+aligned with the scope of this project.
+
+The objective of this project is to parallelize and optimize the tiny-cnn
+library for the Intel Xeon Phi accelerator boards on the Totient
+cluster. In this report, we describe the steps taken to profile,
+parallelize, and tune this CNN implementation for digit classification
+tasks using the standard MNIST dataset also used by the LeNet-5 paper. We
+further analyze the viability and evaluate the potential performance
+improvements of mapping CNNs to MIC architectures.
