@@ -1,0 +1,21 @@
+%=========================================================================
+% fig-result-tbb-omp-avx.tex
+%=========================================================================
+
+\begin{figure}[!hbt]
+
+  \centering
+  \includegraphics[width=0.5\tw]{fig-results-tbb-omp-avx.pdf}
+
+  \caption{\textbf{Strong scaling of OMP and TBB with vectorization --} Strong scaling results for a minibatch size of 360 for OMP and TBB with explicit vectorization. TBB performs much more similarly to OMP as compared to without vectorization.}
+
+  \label{fig-results-tbb-omp-avx}
+
+  \centering
+  \includegraphics[width=0.5\tw]{fig-results-mic-avx.pdf}
+
+  \caption{\textbf{Strong scaling of MIC with AVX512 --} Strong scaling comparison of offloaded MIC code (OMP Offloaded), direct MIC code (OMP MIC), and OMP/TBB on the compute nodes. All code used explicit vectorization. Offloaded and Direct MIC code perform similarly, but both perform worse than without AVX512 vectorization.}
+
+  \label{fig-results-mic-avx}
+
+\end{figure}

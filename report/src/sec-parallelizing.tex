@@ -8,9 +8,23 @@
 \subsection{Parallelization Strategy: TBB vs. OMP}
 \label{sec-parallelizing-tbbvomp}
 
+The initial code written by the author of Tiny-CNN uses TBB (Thread building blocks) to parallelize the solution. The implementation developed by the author parallelizes a single minibatch, allocating a set of images to each thread to process. He supports further optimization at lower levels, when TBB sees fit, by using parallel for-loops that take advantage of TBB's blocked range struct which allows for flexible partitioning of for-loops into several tasks.
+
+We developed an OMP implementation which also parallelizes across the images in a minibatch. Each batch is evenly divided up among each thread, so each thread processes approximately $b/t$ images. Each thread computes the forward pass to generate loss, and then computes the back propogation pass to generate the derivatives for each layer for the thread's images. Afterwards the derivatives are reduced across all threads to determine the derivative of each layer across the entire batch so a gradient descent step can be taken.
+
+We chose to not use a second layer of parallelization across for-loops in our OMP implementation. The reason to not do this is that parallelizing across for loops results in a lot of parallelization of matrix multiplication and similar work which is better optimized with vectorized operations than with parallelization. Parallelization has significant overhead in synchronization and thread creation that can outweigh the benefits when applied to low-level for-loops which aren't doing a lot of work in the grand scheme of the algorithm.
 %\input{fig-parallelizing-tbbvomp}
 
-\subsection{Parallelization Strategy: Offloading to MIC}
+\subsection{Parallelization Strategy: MIC}
 \label{sec-parallelizing-offload}
 
+As we learned in class, MIC co-processors present powerful opportunities to take advantage of massive parallelization to get speedup, even when each thread is relatively low powered.
+
+When choosing to use MICs there are two ways to use them. The first is to compile for, and run the code on the MICs. This makes sense when the code has little serial work or that offloading would result in too much communication overhead due to sending data back and forth between the memory of the main node and the co-processor every offload.
+
+When offloading this implies that choosing where to offload to maximize use of co-processors and minimizing communication cost. For our CNN implementation we have parallelization across images in a single minibatch step. Thus we don't want to offload at a smaller step than this because we want to run the parallelism on the co-processor. However, if we offload at this level we must transfer the images in the batch to the co-processor, and the entire NN in and out of the co-processor. This means a lot of time must be spent in communication. Further there is significant engineering time involved in implementing offloading at this point as our C++ framework uses vectors of vectors which have several level of pointer recursion; Intel's offload pragma does not support pointer chasing to make sure all data is copied over meaning the engineer must manually write the memory management for offloading.
+
+Instead one could offload at a higher level, such as per epoch, or as soon as one enters the program (similar to simply compiling for the co-processor). Offloading each epoch makes little sense because it has the same memory overhead as the batch level offloading, except fewer transfers of the NN model. Offloading immediately makes sense in context of this class as offloading code is significantly easier than getting code to compile and run directly on the co-processor.
+
+Thus we chose to focus on using offloading similar to how one would run code directly on the MIC, with offloading as soon as the code starts running. We also ended up compiling directly for the MIC to compare how offloading and direct running affected performance.
 %\input{fig-parallelizing-offload}

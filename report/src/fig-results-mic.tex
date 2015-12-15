@@ -1,0 +1,14 @@
+%=========================================================================
+% fig-results-mic.tex
+%=========================================================================
+
+\begin{figure}[!hbt]
+
+  \centering
+  \includegraphics[width=0.5\tw]{fig-results-mic.pdf}
+
+  \caption{\textbf{Strong scaling of OMP and TBB without vectorization --} Strong scaling results for a minibatch size of 360 for OMP and TBB without vectorization. The original author's code (TBB) does not work for more than 10 threads and thus results are not shown for TBB with >10 threads. Note the dip when OMP goes beyond 12 threads which is a result of increased communication cost across 2 chips.}
+
+  \label{fig-results-mic}
+
+\end{figure}
